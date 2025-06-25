@@ -21,6 +21,9 @@ class ArticleBase(SQLModel):
     summary: Optional[str] = None
     status: ArticleStatus = Field(default=ArticleStatus.DRAFT)
     is_featured: bool = Field(default=False)
+    # LaTeX支持
+    has_latex: bool = Field(default=False, description="是否包含LaTeX内容")
+    latex_content: Optional[str] = Field(default=None, description="LaTeX内容")
 
 
 class Article(ArticleBase, table=True):
@@ -46,6 +49,8 @@ class ArticleUpdate(SQLModel):
     summary: Optional[str] = None
     status: Optional[ArticleStatus] = None
     is_featured: Optional[bool] = None
+    has_latex: Optional[bool] = None
+    latex_content: Optional[str] = None
 
 
 class ArticleResponse(ArticleBase):

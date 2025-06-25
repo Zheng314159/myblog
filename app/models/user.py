@@ -5,6 +5,7 @@ from enum import Enum
 
 if TYPE_CHECKING:
     from .article import Article
+    from .comment import Comment
 
 
 class UserRole(str, Enum):
@@ -29,6 +30,7 @@ class User(UserBase, table=True):
     
     # Relationships
     articles: List["Article"] = Relationship(back_populates="author")
+    comments: List["Comment"] = Relationship(back_populates="author")
 
 
 class UserCreate(UserBase):

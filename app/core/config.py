@@ -16,6 +16,14 @@ class Settings(BaseSettings):
     # Redis Settings
     redis_url: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
     
+    # Email Settings
+    smtp_server: str = Field(default="smtp.gmail.com", env="SMTP_SERVER")
+    smtp_port: int = Field(default=587, env="SMTP_PORT")
+    email_user: str = Field(default="", env="EMAIL_USER")
+    email_password: str = Field(default="", env="EMAIL_PASSWORD")
+    email_from: str = Field(default="", env="EMAIL_FROM")
+    email_enabled: bool = Field(default=False, env="EMAIL_ENABLED")
+    
     # CORS Settings
     allowed_origins: List[str] = Field(
         default=["http://localhost:3000", "http://localhost:8080"],

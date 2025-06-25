@@ -1,12 +1,13 @@
 from datetime import timedelta
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token, verify_token
 from app.core.redis import redis_manager
 from app.core.exceptions import AuthenticationError, ConflictError
+from app.core.tasks import add_welcome_email_task, add_password_reset_email_task
 from app.models.user import User, UserCreate
 from app.schemas.auth import Token, LoginRequest, RefreshTokenRequest, LogoutRequest
 
@@ -16,6 +17,7 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 @router.post("/register", response_model=Token)
 async def register(
     user_data: UserCreate,
+    background_tasks: BackgroundTasks,
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """Register a new user"""
@@ -56,6 +58,9 @@ async def register(
         refresh_token,
         expire=7 * 24 * 60 * 60  # 7 days
     )
+    
+    # Add welcome email task to background tasks
+    add_welcome_email_task(background_tasks, db_user.email, db_user.username)
     
     return Token(
         access_token=access_token,
@@ -160,4 +165,77 @@ async def logout(logout_data: LogoutRequest):
         expire=30 * 60  # 30 minutes (access token lifetime)
     )
     
-    return {"message": "Successfully logged out"} 
+    return {"message": "Successfully logged out"}
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    email: str,
+    background_tasks: BackgroundTasks,
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    """Send password reset email"""
+    # Find user by email
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        # Don't reveal if email exists or not for security
+        return {"message": "If the email exists, a password reset link has been sent"}
+    
+    if not user.is_active:
+        raise AuthenticationError("Inactive user")
+    
+    # Generate password reset token
+    reset_token = create_access_token(
+        data={"sub": user.username, "user_id": user.id, "type": "password_reset"},
+        expires_delta=timedelta(hours=24)
+    )
+    
+    # Store reset token in Redis
+    await redis_manager.set(
+        f"password_reset:{user.id}",
+        reset_token,
+        expire=24 * 60 * 60  # 24 hours
+    )
+    
+    # Add password reset email task to background tasks
+    add_password_reset_email_task(background_tasks, user.email, user.username, reset_token)
+    
+    return {"message": "If the email exists, a password reset link has been sent"}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    token: str,
+    new_password: str,
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    """Reset password using token"""
+    # Verify reset token
+    payload = verify_token(token)
+    if not payload or payload.get("type") != "password_reset":
+        raise AuthenticationError("Invalid or expired reset token")
+    
+    user_id = payload.get("user_id")
+    
+    # Check if reset token exists in Redis
+    stored_token = await redis_manager.get(f"password_reset:{user_id}")
+    if not stored_token or stored_token != token:
+        raise AuthenticationError("Invalid or expired reset token")
+    
+    # Get user
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    
+    if not user or not user.is_active:
+        raise AuthenticationError("User not found or inactive")
+    
+    # Update password
+    user.hashed_password = get_password_hash(new_password)
+    await db.commit()
+    
+    # Remove reset token from Redis
+    await redis_manager.delete(f"password_reset:{user_id}")
+    
+    return {"message": "Password successfully reset"} 

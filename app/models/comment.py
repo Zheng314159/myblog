@@ -22,7 +22,7 @@ class Comment(CommentBase, table=True):
     
     # Relationships
     article: Optional["Article"] = Relationship(back_populates="comments")
-    author: Optional["User"] = Relationship()
+    author: Optional["User"] = Relationship(back_populates="comments")
     parent: Optional["Comment"] = Relationship(back_populates="replies", sa_relationship_kwargs={"remote_side": "Comment.id"})
     replies: List["Comment"] = Relationship(back_populates="parent")
 

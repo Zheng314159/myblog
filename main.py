@@ -12,6 +12,9 @@ from app.core.redis import redis_manager
 from app.core.middleware import setup_middleware
 from app.core.exceptions import BlogException
 from app.api.v1.auth import router as auth_router
+from app.api.v1.article import router as article_router
+from app.api.v1.tag import router as tag_router
+from app.api.v1.websocket import router as websocket_router
 
 
 @asynccontextmanager
@@ -107,6 +110,9 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 # Include routers
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(article_router, prefix="/api/v1")
+app.include_router(tag_router, prefix="/api/v1")
+app.include_router(websocket_router, prefix="/api/v1")
 
 
 @app.get("/")

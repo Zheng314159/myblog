@@ -14,6 +14,11 @@ class UserRole(str, Enum):
     USER = "user"
 
 
+class OAuthProvider(str, Enum):
+    GITHUB = "github"
+    GOOGLE = "google"
+
+
 class UserBase(SQLModel):
     username: str = Field(unique=True, index=True)
     email: str = Field(unique=True, index=True)
@@ -24,9 +29,15 @@ class UserBase(SQLModel):
 
 class User(UserBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    hashed_password: str
+    hashed_password: Optional[str] = None  # Optional for OAuth users
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    # OAuth fields
+    oauth_provider: Optional[OAuthProvider] = None
+    oauth_id: Optional[str] = None  # External OAuth ID
+    oauth_username: Optional[str] = None  # Username from OAuth provider
+    avatar_url: Optional[str] = None  # Profile picture URL
     
     # Relationships
     articles: List["Article"] = Relationship(back_populates="author")
@@ -34,7 +45,7 @@ class User(UserBase, table=True):
 
 
 class UserCreate(UserBase):
-    password: str
+    password: Optional[str] = None  # Optional for OAuth users
 
 
 class UserUpdate(SQLModel):
@@ -43,9 +54,26 @@ class UserUpdate(SQLModel):
     full_name: Optional[str] = None
     password: Optional[str] = None
     is_active: Optional[bool] = None
+    avatar_url: Optional[str] = None
 
 
 class UserResponse(UserBase):
     id: int
     created_at: datetime
-    updated_at: datetime 
+    updated_at: datetime
+    oauth_provider: Optional[OAuthProvider] = None
+    avatar_url: Optional[str] = None
+
+
+class OAuthAccount(SQLModel, table=True):
+    """Separate table for OAuth account bindings"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id")
+    provider: OAuthProvider
+    provider_user_id: str = Field(index=True)
+    provider_username: Optional[str] = None
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow) 

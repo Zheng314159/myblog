@@ -33,6 +33,29 @@ async def test_all_features():
             print(f"❌ 健康检查异常: {e}")
             return
         
+        # 1.5 自动注册测试账号
+        register_data = {
+            "username": "admin_scheduler",
+            "email": "admin_scheduler@example.com",
+            "password": "adminpass123",
+            "full_name": "Scheduler Admin",
+            "role": "admin"
+        }
+        try:
+            async with session.post(f"{BASE_URL}/api/v1/auth/register", json=register_data) as response:
+                if response.status == 201 or response.status == 200:
+                    print("✅ 测试账号注册成功")
+                elif response.status == 409:
+                    print("ℹ️ 测试账号已存在，继续测试")
+                else:
+                    print(f"❌ 测试账号注册失败: {response.status}")
+                    result = await response.json()
+                    print(f"错误详情: {result}")
+                    return
+        except Exception as e:
+            print(f"❌ 测试账号注册异常: {e}")
+            return
+        
         # 2. 测试用户登录
         print("\n🔐 测试用户登录...")
         login_data = {

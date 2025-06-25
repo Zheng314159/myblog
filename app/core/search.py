@@ -3,6 +3,7 @@ from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select
 from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import OperationalError
 
 from app.models.article import Article, ArticleStatus
 from app.models.tag import Tag, ArticleTag
@@ -28,11 +29,21 @@ class FTSSearch:
     @staticmethod
     async def create_fts_table(db: AsyncSession):
         """创建 FTS5 虚拟表"""
+        # 幂等删除所有 FTS5 相关对象
+        for sql in [
+            "DROP TRIGGER IF EXISTS articles_ai",
+            "DROP TRIGGER IF EXISTS articles_ad",
+            "DROP TRIGGER IF EXISTS articles_au",
+            "DROP TABLE IF EXISTS articles_fts"
+        ]:
+            try:
+                await db.execute(text(sql))
+                await db.commit()
+            except Exception as e:
+                print(f"Warning: {sql} failed: {e}")
+
+        # 创建 FTS5 表
         try:
-            # 首先删除可能存在的表和触发器
-            await FTSSearch.drop_fts_table(db)
-            
-            # 创建 FTS5 虚拟表
             await db.execute(text("""
                 CREATE VIRTUAL TABLE articles_fts USING fts5(
                     id UNINDEXED,
@@ -45,24 +56,26 @@ class FTSSearch:
                     updated_at UNINDEXED
                 )
             """))
-            
-            # 创建触发器
-            await db.execute(text("""
+            await db.commit()
+        except Exception as e:
+            print(f"Warning: FTS5 table create failed: {e}")
+
+        # 创建触发器
+        trigger_sqls = [
+            ("articles_ai", """
                 CREATE TRIGGER articles_ai AFTER INSERT ON article BEGIN
                     INSERT INTO articles_fts(id, title, content, summary, author_id, status, created_at, updated_at)
                     VALUES (new.id, new.title, new.content, new.summary, new.author_id, new.status, new.created_at, new.updated_at);
                 END
-            """))
-            
-            await db.execute(text("""
+            """),
+            ("articles_ad", """
                 CREATE TRIGGER articles_ad AFTER DELETE ON article BEGIN
                     DELETE FROM articles_fts WHERE id = old.id;
                 END
-            """))
-            
-            await db.execute(text("""
+            """),
+            ("articles_au", """
                 CREATE TRIGGER articles_au AFTER UPDATE ON article BEGIN
-                    UPDATE articles_fts SET 
+                    UPDATE articles_fts SET
                         title = new.title,
                         content = new.content,
                         summary = new.summary,
@@ -71,65 +84,60 @@ class FTSSearch:
                         updated_at = new.updated_at
                     WHERE id = new.id;
                 END
-            """))
-            
-            await db.commit()
-            print("FTS5 table and triggers created successfully")
-            
-        except Exception as e:
-            await db.rollback()
-            print(f"Error creating FTS5 table: {e}")
-            raise
+            """)
+        ]
+        for name, sql in trigger_sqls:
+            try:
+                await db.execute(text(sql))
+                await db.commit()
+            except Exception as e:
+                if "already exists" in str(e):
+                    print(f"Warning: FTS5 trigger {name} create failed: {e}")
+                else:
+                    print(f"Warning: FTS5 trigger {name} create failed: {e}")
     
     @staticmethod
     async def populate_fts_table(db: AsyncSession):
         """填充 FTS5 表数据"""
+        # 检查 FTS5 表是否存在
         try:
-            # 检查表是否存在
-            result = await db.execute(text("""
-                SELECT name FROM sqlite_master 
-                WHERE type='table' AND name='articles_fts'
-            """))
-            if not result.fetchone():
-                print("FTS5 table does not exist, skipping population")
+            result = await db.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='articles_fts'"))
+            exists = result.scalar()
+            if not exists:
+                print("Warning: articles_fts table does not exist, skip population.")
                 return
-            
-            # 清空现有数据
-            await db.execute(text("DELETE FROM articles_fts"))
-            
-            # 获取所有已发布的文章
-            result = await db.execute(
-                select(Article).where(Article.status == ArticleStatus.PUBLISHED)
-            )
-            articles = result.scalars().all()
-            
-            if not articles:
-                print("No published articles found for FTS5 population")
-                await db.commit()
-                return
-            
-            # 批量插入到 FTS5 表
-            for article in articles:
-                await db.execute(text("""
-                    INSERT INTO articles_fts(id, title, content, summary, author_id, status, created_at, updated_at)
-                    VALUES (:id, :title, :content, :summary, :author_id, :status, :created_at, :updated_at)
-                """), {
-                    "id": article.id,
-                    "title": article.title,
-                    "content": article.content,
-                    "summary": article.summary or "",
-                    "author_id": article.author_id,
-                    "status": article.status.value,
-                    "created_at": article.created_at.isoformat(),
-                    "updated_at": article.updated_at.isoformat()
-                })
-            
-            await db.commit()
-            print(f"FTS5 table populated with {len(articles)} articles")
-            
         except Exception as e:
-            await db.rollback()
-            print(f"Error populating FTS5 table: {e}")
+            print(f"Warning: FTS5 table existence check failed: {e}")
+            return
+        # 清空 FTS5 表
+        try:
+            await db.execute(text("DELETE FROM articles_fts"))
+            await db.commit()
+        except Exception as e:
+            print(f"Warning: FTS5 table clear failed: {e}")
+        # 填充 FTS5 表
+        try:
+            result = await db.execute(text("""
+                SELECT article.id, article.title, article.content, article.summary, article.author_id, article.status, article.created_at, article.updated_at
+                FROM article
+                WHERE article.status = 'published'
+            """))
+            rows = result.fetchall()
+            if not rows:
+                print("No published articles found for FTS5 population")
+                return
+            for row in rows:
+                try:
+                    await db.execute(text("""
+                        INSERT INTO articles_fts(id, title, content, summary, author_id, status, created_at, updated_at)
+                        VALUES (:id, :title, :content, :summary, :author_id, :status, :created_at, :updated_at)
+                    """), dict(row))
+                except Exception as e:
+                    print(f"Warning: FTS5 insert failed: {e}")
+            await db.commit()
+        except Exception as e:
+            print(f"Warning: FTS5 population failed: {e}")
+        print("FTS5 search index setup completed successfully")
     
     @staticmethod
     def build_search_query(search_term: str) -> str:

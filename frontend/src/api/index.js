@@ -1,28 +1,26 @@
 // API基础配置
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
 
 // 请求工具函数
 const request = async (endpoint, options = {}) => {
-  const token = localStorage.getItem('access_token');
-  
+  const url = `${API_BASE_URL}${endpoint}`;
   const config = {
     headers: {
       'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }),
       ...options.headers,
     },
     ...options,
   };
 
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-    
+    const response = await fetch(url, config);
+    const data = await response.json();
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      throw new Error(data.message || `HTTP error! status: ${response.status}`);
     }
-    
-    return await response.json();
+
+    return data;
   } catch (error) {
     console.error('API request failed:', error);
     throw error;
@@ -68,15 +66,67 @@ export const authAPI = {
   }),
 };
 
+// OAuth相关API
+export const oauthAPI = {
+  // 获取可用的OAuth提供商
+  getProviders: () => request('/oauth/providers'),
+
+  // 获取用户的OAuth账户
+  getAccounts: () => request('/oauth/accounts'),
+
+  // GitHub OAuth登录
+  githubLogin: () => {
+    window.location.href = `${API_BASE_URL}/oauth/github/login`;
+  },
+
+  // Google OAuth登录
+  googleLogin: () => {
+    window.location.href = `${API_BASE_URL}/oauth/google/login`;
+  },
+
+  // 绑定OAuth账户
+  bindAccount: (provider) => request(`/oauth/bind/${provider}`),
+
+  // 解绑OAuth账户
+  unbindAccount: (provider) => request(`/oauth/unbind/${provider}`),
+
+  // 处理OAuth回调
+  handleCallback: () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const accessToken = urlParams.get('access_token');
+    const refreshToken = urlParams.get('refresh_token');
+    const tokenType = urlParams.get('token_type');
+
+    if (accessToken && refreshToken) {
+      // 存储token
+      localStorage.setItem('access_token', accessToken);
+      localStorage.setItem('refresh_token', refreshToken);
+      localStorage.setItem('token_type', tokenType || 'bearer');
+
+      // 清除URL参数
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      return {
+        success: true,
+        accessToken,
+        refreshToken,
+        tokenType: tokenType || 'bearer'
+      };
+    }
+
+    return { success: false };
+  },
+};
+
 // 文章相关API
 export const articleAPI = {
   // 获取文章列表
   getArticles: (params = {}) => {
-    const queryParams = new URLSearchParams(params).toString();
-    return request(`/articles?${queryParams}`);
+    const queryString = new URLSearchParams(params).toString();
+    return request(`/articles?${queryString}`);
   },
 
-  // 获取文章详情
+  // 获取单篇文章
   getArticle: (id) => request(`/articles/${id}`),
 
   // 创建文章
@@ -96,21 +146,22 @@ export const articleAPI = {
     method: 'DELETE',
   }),
 
-  // 上传图片
-  uploadImage: (file) => {
+  // 上传文件
+  uploadFile: (file) => {
     const formData = new FormData();
     formData.append('file', file);
-    
-    const token = localStorage.getItem('access_token');
-    
-    return fetch(`${API_BASE_URL}/articles/upload-image`, {
+
+    return request('/articles/upload', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
       body: formData,
-    }).then(response => response.json());
+    });
   },
+
+  // 获取LaTeX渲染
+  getLatexRender: (latex) => request('/articles/latex/render', {
+    method: 'POST',
+    body: JSON.stringify({ latex }),
+  }),
 
   // 获取文章评论
   getComments: (articleId, params = {}) => {
@@ -211,6 +262,13 @@ export const apiUtils = {
     }
     
     return true;
+  },
+
+  // 清除认证信息
+  clearAuth: () => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('token_type');
   },
 };
 

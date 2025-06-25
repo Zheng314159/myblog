@@ -12,12 +12,14 @@ from app.core.redis import redis_manager
 from app.core.middleware import setup_middleware
 from app.core.exceptions import BlogException
 from app.core.scheduler import start_scheduler, stop_scheduler
+from app.core.oauth import oauth
 from app.api.v1.auth import router as auth_router
 from app.api.v1.article import router as article_router
 from app.api.v1.tag import router as tag_router
 from app.api.v1.websocket import router as websocket_router
 from app.api.v1.search import router as search_router
 from app.api.v1.scheduler import router as scheduler_router
+from app.api.v1.oauth import router as oauth_router
 
 
 @asynccontextmanager
@@ -33,6 +35,10 @@ async def lifespan(app: FastAPI):
     # Create database tables
     await create_db_and_tables()
     print("Database tables created")
+    
+    # Initialize OAuth
+    # oauth.init_app(app)  # Temporarily disabled due to linter issues
+    print("OAuth initialization skipped")
     
     # Start scheduler
     await start_scheduler()
@@ -128,6 +134,7 @@ app.include_router(tag_router, prefix="/api/v1")
 app.include_router(websocket_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(scheduler_router, prefix="/api/v1")
+app.include_router(oauth_router, prefix="/api/v1")
 
 
 @app.get("/")

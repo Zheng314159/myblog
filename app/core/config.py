@@ -37,6 +37,18 @@ class Settings(BaseSettings):
     # Scheduler Settings
     timezone: str = Field(default="Asia/Shanghai", env="TIMEZONE")
     
+    # OAuth Settings
+    # GitHub OAuth
+    github_client_id: str = Field(default="", env="GITHUB_CLIENT_ID")
+    github_client_secret: str = Field(default="", env="GITHUB_CLIENT_SECRET")
+    
+    # Google OAuth
+    google_client_id: str = Field(default="", env="GOOGLE_CLIENT_ID")
+    google_client_secret: str = Field(default="", env="GOOGLE_CLIENT_SECRET")
+    
+    # OAuth Base URL
+    oauth_base_url: str = Field(default="http://localhost:8000", env="OAUTH_BASE_URL")
+    
     class Config:
         env_file = ".env"
         case_sensitive = False

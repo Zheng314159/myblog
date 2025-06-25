@@ -41,7 +41,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
             "/", "/health", "/docs", "/redoc", "/openapi.json", "/favicon.ico",
             "/api/v1/auth/login", "/api/v1/auth/register"
         ]
-        if request.url.path in public_paths or request.url.path.startswith("/static") or request.url.path.startswith("/docs") or request.url.path.startswith("/redoc") or request.url.path.startswith("/api/v1/auth/") or request.url.path.startswith("/api/v1/search/"):
+        if (request.url.path in public_paths or 
+            request.url.path.startswith("/static") or 
+            request.url.path.startswith("/docs") or 
+            request.url.path.startswith("/redoc") or 
+            request.url.path.startswith("/api/v1/auth/") or 
+            request.url.path.startswith("/api/v1/search/") or
+            request.url.path.startswith("/api/v1/oauth/")):
             return await call_next(request)
         
         # Get token from header

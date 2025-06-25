@@ -8,6 +8,7 @@ import aiohttp
 import json
 from typing import Optional
 
+BASE_URL = "http://127.0.0.1:8000"
 
 class AuthTester:
     def __init__(self, base_url: str = "http://127.0.0.1:8000"):
@@ -111,37 +112,113 @@ class AuthTester:
 
 async def main():
     """主测试函数"""
-    print("🔐 认证功能测试")
-    print("=" * 50)
-    
-    async with AuthTester() as tester:
-        # 测试健康检查
+    print("🔐 认证功能测试\n" + "="*50)
+    async with aiohttp.ClientSession() as session:
+        # 健康检查
         print("\n🔍 测试健康检查...")
-        if not await tester.test_health():
-            print("❌ 健康检查失败，停止测试")
+        async with session.get(f"{BASE_URL}/health") as resp:
+            data = await resp.json()
+            if resp.status == 200 and data.get("status") == "healthy":
+                print(f"✅ 健康检查通过: {data}")
+            else:
+                print(f"❌ 健康检查失败: {data}")
+                return
+
+        # 注册测试用户
+        print("🔍 测试用户注册...")
+        reg_data = {
+            "username": "testuser_auth",
+            "email": "testauth@example.com",
+            "password": "testpass123",
+            "full_name": "testuser_auth User"
+        }
+        try:
+            async with session.post(f"{BASE_URL}/api/v1/auth/register", json=reg_data) as resp:
+                try:
+                    result = await resp.json()
+                except Exception:
+                    result = await resp.text()
+                if resp.status in (200, 201) and isinstance(result, dict) and "access_token" in result:
+                    print(f"✅ 用户注册成功: {result}")
+                elif resp.status == 409 or (isinstance(result, dict) and result.get("message", "").find("already registered") != -1):
+                    print(f"⚠️ 用户已存在: {result}")
+                else:
+                    print(f"❌ 用户注册失败: {result}")
+                    return
+        except Exception as e:
+            print(f"❌ 用户注册异常: {e}")
             return
-        
-        # 测试用户注册
-        print("\n🔍 测试用户注册...")
-        test_username = "testuser_auth"
-        test_email = "testauth@example.com"
-        test_password = "testpass123"
-        
-        if not await tester.test_register(test_username, test_email, test_password):
-            print("❌ 用户注册失败")
-            return
-        
-        # 测试用户登录
+
+        # 登录测试用户
         print("\n🔍 测试用户登录...")
-        if not await tester.test_login(test_username, test_password):
-            print("❌ 用户登录失败")
+        login_data = {
+            "username": "testuser_auth",
+            "password": "testpass123"
+        }
+        try:
+            async with session.post(f"{BASE_URL}/api/v1/auth/login", json=login_data) as resp:
+                try:
+                    result = await resp.json()
+                except Exception as e:
+                    print(f"❌ 用户登录异常: {e}, url={resp.url}")
+                    print("❌ 用户登录失败")
+                    return
+                if resp.status == 200 and "access_token" in result:
+                    print(f"✅ 用户登录成功: {result}")
+                else:
+                    print(f"❌ 用户登录失败: {result}")
+                    return
+        except Exception as e:
+            print(f"❌ 用户登录异常: {e}")
             return
-        
-        # 测试受保护的端点
-        print("\n🔍 测试受保护的端点...")
-        await tester.test_protected_endpoint()
-    
-    print("\n🎉 认证测试完成！")
+
+        # 刷新 token
+        print("\n🔍 测试刷新 token...")
+        refresh_token = result.get("refresh_token")
+        if not refresh_token:
+            print("❌ 未获取到 refresh_token，跳过刷新 token 测试")
+            return
+        try:
+            async with session.post(f"{BASE_URL}/api/v1/auth/refresh", json={"refresh_token": refresh_token}) as resp:
+                try:
+                    result2 = await resp.json()
+                except Exception as e:
+                    print(f"❌ 刷新 token 异常: {e}, url={resp.url}")
+                    print("❌ 刷新 token 失败")
+                    return
+                if resp.status == 200 and "access_token" in result2:
+                    print(f"✅ 刷新 token 成功: {result2}")
+                else:
+                    print(f"❌ 刷新 token 失败: {result2}")
+                    return
+        except Exception as e:
+            print(f"❌ 刷新 token 异常: {e}")
+            return
+
+        # 登出
+        print("\n🔍 测试登出...")
+        access_token = result.get("access_token")
+        if not access_token:
+            print("❌ 未获取到 access_token，跳过登出测试")
+            return
+        try:
+            async with session.post(f"{BASE_URL}/api/v1/auth/logout", json={"access_token": access_token}) as resp:
+                try:
+                    result3 = await resp.json()
+                except Exception as e:
+                    print(f"❌ 登出异常: {e}, url={resp.url}")
+                    print("❌ 登出失败")
+                    return
+                if resp.status == 200 and result3.get("message"):
+                    print(f"✅ 登出成功: {result3}")
+                else:
+                    print(f"❌ 登出失败: {result3}")
+                    return
+        except Exception as e:
+            print(f"❌ 登出异常: {e}")
+            return
+
+        print("\n🎉 所有认证相关测试通过！")
 
 
 if __name__ == "__main__":

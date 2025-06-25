@@ -11,10 +11,13 @@ from app.core.database import engine, create_db_and_tables
 from app.core.redis import redis_manager
 from app.core.middleware import setup_middleware
 from app.core.exceptions import BlogException
+from app.core.scheduler import start_scheduler, stop_scheduler
 from app.api.v1.auth import router as auth_router
 from app.api.v1.article import router as article_router
 from app.api.v1.tag import router as tag_router
 from app.api.v1.websocket import router as websocket_router
+from app.api.v1.search import router as search_router
+from app.api.v1.scheduler import router as scheduler_router
 
 
 @asynccontextmanager
@@ -31,10 +34,20 @@ async def lifespan(app: FastAPI):
     await create_db_and_tables()
     print("Database tables created")
     
+    # Start scheduler
+    await start_scheduler()
+    print("Scheduler started")
+    
     yield
     
     # Shutdown
     print("Shutting down...")
+    
+    # Stop scheduler
+    await stop_scheduler()
+    print("Scheduler stopped")
+    
+    # Disconnect from Redis
     await redis_manager.disconnect()
     print("Disconnected from Redis")
 
@@ -113,6 +126,8 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(article_router, prefix="/api/v1")
 app.include_router(tag_router, prefix="/api/v1")
 app.include_router(websocket_router, prefix="/api/v1")
+app.include_router(search_router, prefix="/api/v1")
+app.include_router(scheduler_router, prefix="/api/v1")
 
 
 @app.get("/")

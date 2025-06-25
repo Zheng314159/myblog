@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     app_name: str = Field(default="FastAPI Blog System", env="APP_NAME")
     debug: bool = Field(default=True, env="DEBUG")
     
+    # Scheduler Settings
+    timezone: str = Field(default="Asia/Shanghai", env="TIMEZONE")
+    
     class Config:
         env_file = ".env"
         case_sensitive = False

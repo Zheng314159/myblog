@@ -158,7 +158,9 @@ async def create_comment(
 ):
     """创建评论"""
     # 检查文章是否存在
-    result = await db.execute(select(Article).where(Article.id == article_id))
+    result = await db.execute(
+        select(Article).options(selectinload(Article.author)).where(Article.id == article_id)
+    )
     article = result.scalar_one_or_none()
     
     if not article:

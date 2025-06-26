@@ -1,5 +1,5 @@
 // API基础配置
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
 // 请求工具函数
 const request = async (endpoint, options = {}) => {

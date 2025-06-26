@@ -39,15 +39,19 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # 允许无需认证的公开路径
         public_paths = [
             "/", "/health", "/docs", "/redoc", "/openapi.json", "/favicon.ico",
-            "/api/v1/auth/login", "/api/v1/auth/register"
+            "/api/v1/auth/login", "/api/v1/auth/register",
+            "/api/v1/articles/",  # 允许匿名访问文章列表
+            "/api/v1/tags/popular",  # 允许匿名访问热门标签
         ]
-        if (request.url.path in public_paths or 
+        if (
+            request.url.path in public_paths or 
             request.url.path.startswith("/static") or 
             request.url.path.startswith("/docs") or 
             request.url.path.startswith("/redoc") or 
-            request.url.path.startswith("/api/v1/auth/") or 
             request.url.path.startswith("/api/v1/search/") or
-            request.url.path.startswith("/api/v1/oauth/")):
+            request.url.path.startswith("/api/v1/oauth/") or
+            request.url.path.startswith("/api/v1/articles/")  # 允许所有文章相关接口匿名访问
+        ):
             return await call_next(request)
         
         # Get token from header

@@ -10,8 +10,17 @@ from app.core.exceptions import AuthenticationError, ConflictError
 from app.core.tasks import add_welcome_email_task, add_password_reset_email_task
 from app.models.user import User, UserCreate
 from app.schemas.auth import Token, LoginRequest, RefreshTokenRequest, LogoutRequest
+from fastapi import Depends
+from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
+
+@router.get("/me")
+async def get_me(current_user: dict = Depends(get_current_user)):
+    """
+    获取当前登录用户信息
+    """
+    return current_user
 
 
 @router.post("/register", response_model=Token)

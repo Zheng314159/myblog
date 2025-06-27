@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
 from sqlalchemy.orm import selectinload
+import re
 
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError, AuthorizationError
@@ -256,21 +257,28 @@ async def create_article(
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """创建文章"""
-    # 处理LaTeX内容
+    # 检查是否包含LaTeX内容（用于标记，但不进行服务端渲染）
     has_latex = False
     latex_content = None
-    processed_content = article_data.content
     
-    if article_data.has_latex and article_data.latex_content:
-        has_latex = True
-        latex_content = article_data.latex_content
-        # 处理LaTeX内容
-        processed_content, latex_blocks = latex_renderer.process_content(article_data.content)
+    # 简单的LaTeX检测
+    if article_data.content:
+        latex_patterns = [
+            r'\$[^$]+\$',  # 行内公式
+            r'\$\$[^$]+\$\$',  # 块级公式
+            r'\\\([^)]+\\\)',  # 行内公式
+            r'\\\[[^\]]+\\\]',  # 块级公式
+        ]
+        
+        for pattern in latex_patterns:
+            if re.search(pattern, article_data.content):
+                has_latex = True
+                break
     
-    # 创建文章
+    # 创建文章（直接使用原始内容，不进行LaTeX处理）
     db_article = Article(
         title=article_data.title,
-        content=processed_content,
+        content=article_data.content,  # 直接使用原始内容
         summary=article_data.summary,
         status=article_data.status,
         author_id=current_user.id,

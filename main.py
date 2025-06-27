@@ -20,6 +20,9 @@ from app.api.v1.websocket import router as websocket_router
 from app.api.v1.search import router as search_router
 from app.api.v1.scheduler import router as scheduler_router
 from app.api.v1.oauth import router as oauth_router
+from app.api.v1 import admin as admin_module
+import fastapi_admin
+import tortoise
 
 
 @asynccontextmanager
@@ -43,6 +46,13 @@ async def lifespan(app: FastAPI):
     # Start scheduler
     await start_scheduler()
     print("Scheduler started")
+    
+    # Initialize Tortoise ORM (fastapi-admin requirement)
+    await admin_module.init_tortoise()
+    # Configure fastapi-admin
+    await admin_module.on_startup()
+    # Mount fastapi-admin backend
+    app.mount("/admin", fastapi_admin.app)
     
     yield
     
@@ -155,6 +165,16 @@ async def health_check():
         "status": "healthy",
         "message": "Service is running"
     }
+
+
+@app.on_event("startup")
+async def startup_event():
+    # Initialize Tortoise ORM (fastapi-admin requirement)
+    await admin_module.init_tortoise()
+    # Configure fastapi-admin
+    await admin_module.on_startup()
+    # Mount fastapi-admin backend
+    app.mount("/admin", fastapi_admin.app)
 
 
 if __name__ == "__main__":

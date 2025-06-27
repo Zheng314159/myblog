@@ -16,7 +16,9 @@ const Home: React.FC = () => {
   useEffect(() => {
     setLoading(true);
     getArticles().then((res) => {
-      setArticles(res.items || res.data || []);
+      const allArticles = res.items || res.data || [];
+      const adminArticles = allArticles.filter((item: any) => item.author?.role === "admin");
+      setArticles(adminArticles);
       setLoading(false);
     });
     getPopularTags().then((res) => {

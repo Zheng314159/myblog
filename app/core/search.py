@@ -99,6 +99,8 @@ class FTSSearch:
     @staticmethod
     async def populate_fts_table(db: AsyncSession):
         """填充 FTS5 表数据"""
+        print("开始填充FTS5表...")
+        
         # 检查 FTS5 表是否存在
         try:
             result = await db.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='articles_fts'"))
@@ -106,38 +108,87 @@ class FTSSearch:
             if not exists:
                 print("Warning: articles_fts table does not exist, skip population.")
                 return
+            print("FTS5表存在，继续填充...")
         except Exception as e:
             print(f"Warning: FTS5 table existence check failed: {e}")
             return
+        
         # 清空 FTS5 表
         try:
             await db.execute(text("DELETE FROM articles_fts"))
             await db.commit()
+            print("FTS5表清空成功")
         except Exception as e:
             print(f"Warning: FTS5 table clear failed: {e}")
+        
         # 填充 FTS5 表
         try:
-            result = await db.execute(text("""
+            # 首先检查所有文章的状态
+            result = await db.execute(text("SELECT id, title, status FROM article"))
+            all_articles = result.fetchall()
+            print(f"数据库中共有 {len(all_articles)} 篇文章:")
+            for article in all_articles:
+                print(f"  Article {article[0]}: '{article[1]}' - status: '{article[2]}'")
+            
+            # 查询已发布的文章
+            query = text("""
                 SELECT article.id, article.title, article.content, article.summary, article.author_id, article.status, article.created_at, article.updated_at
                 FROM article
-                WHERE article.status = 'published'
-            """))
+                WHERE article.status = 'PUBLISHED'
+            """)
+            print(f"执行查询: {query}")
+            
+            result = await db.execute(query)
             rows = result.fetchall()
+            print(f"找到 {len(rows)} 篇已发布的文章")
+            
             if not rows:
-                print("No published articles found for FTS5 population")
+                print("没有找到已发布的文章，跳过FTS5填充")
                 return
+            
+            # 插入到FTS表
+            inserted_count = 0
             for row in rows:
                 try:
-                    await db.execute(text("""
+                    # 构建插入数据
+                    insert_data = {
+                        'id': row[0],
+                        'title': row[1] or '',
+                        'content': row[2] or '',
+                        'summary': row[3] or '',
+                        'author_id': row[4],
+                        'status': row[5],
+                        'created_at': row[6],
+                        'updated_at': row[7]
+                    }
+                    
+                    insert_query = text("""
                         INSERT INTO articles_fts(id, title, content, summary, author_id, status, created_at, updated_at)
                         VALUES (:id, :title, :content, :summary, :author_id, :status, :created_at, :updated_at)
-                    """), dict(row))
+                    """)
+                    
+                    await db.execute(insert_query, insert_data)
+                    inserted_count += 1
+                    print(f"成功插入文章 {row[0]}: '{row[1]}'")
+                    
                 except Exception as e:
-                    print(f"Warning: FTS5 insert failed: {e}")
+                    print(f"插入文章 {row[0]} 失败: {e}")
+                    print(f"文章数据: {dict(row)}")
+            
             await db.commit()
+            print(f"成功插入 {inserted_count} 篇文章到FTS5表")
+            
+            # 验证插入结果
+            result = await db.execute(text("SELECT COUNT(*) FROM articles_fts"))
+            final_count = result.scalar()
+            print(f"FTS5表最终记录数: {final_count}")
+            
         except Exception as e:
-            print(f"Warning: FTS5 population failed: {e}")
-        print("FTS5 search index setup completed successfully")
+            print(f"FTS5填充过程中发生错误: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        print("FTS5搜索索引设置完成")
     
     @staticmethod
     def build_search_query(search_term: str) -> str:

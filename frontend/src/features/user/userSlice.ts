@@ -2,6 +2,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 export interface UserState {
   isAuthenticated: boolean;
+  isLoading: boolean;
   accessToken: string | null;
   refreshToken: string | null;
   userInfo: {
@@ -15,6 +16,7 @@ export interface UserState {
 
 const initialState: UserState = {
   isAuthenticated: false,
+  isLoading: true,
   accessToken: null,
   refreshToken: null,
   userInfo: null,
@@ -26,12 +28,14 @@ const userSlice = createSlice({
   reducers: {
     loginSuccess(state, action: PayloadAction<{ accessToken: string; refreshToken: string; userInfo: any }>) {
       state.isAuthenticated = true;
+      state.isLoading = false;
       state.accessToken = action.payload.accessToken;
       state.refreshToken = action.payload.refreshToken;
       state.userInfo = action.payload.userInfo;
     },
     logout(state) {
       state.isAuthenticated = false;
+      state.isLoading = false;
       state.accessToken = null;
       state.refreshToken = null;
       state.userInfo = null;
@@ -39,8 +43,11 @@ const userSlice = createSlice({
     setUserInfo(state, action: PayloadAction<any>) {
       state.userInfo = action.payload;
     },
+    setLoading(state, action: PayloadAction<boolean>) {
+      state.isLoading = action.payload;
+    },
   },
 });
 
-export const { loginSuccess, logout, setUserInfo } = userSlice.actions;
+export const { loginSuccess, logout, setUserInfo, setLoading } = userSlice.actions;
 export default userSlice.reducer; 

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Form, Input, Button, message, Typography } from "antd";
+import { Form, Input, Button, Typography, App } from "antd";
 import { register } from "../../api/auth";
 import { useNavigate } from "react-router-dom";
 
@@ -8,6 +8,7 @@ const { Title } = Typography;
 const Register: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { message } = App.useApp();
 
   const onFinish = async (values: any) => {
     setLoading(true);

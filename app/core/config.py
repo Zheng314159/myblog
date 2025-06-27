@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     database_url: str = Field(default="sqlite+aiosqlite:///./blog.db", env="DATABASE_URL")
     
     # JWT Settings
-    secret_key: str = Field(env="SECRET_KEY")
+    secret_key: str = Field(default="your-super-secret-key-change-this-in-production-123456789", env="SECRET_KEY")
     algorithm: str = Field(default="HS256", env="ALGORITHM")
     access_token_expire_minutes: int = Field(default=30, env="ACCESS_TOKEN_EXPIRE_MINUTES")
     refresh_token_expire_days: int = Field(default=7, env="REFRESH_TOKEN_EXPIRE_DAYS")

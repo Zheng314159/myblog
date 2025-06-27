@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { Form, Input, Button, message, Typography } from "antd";
+import { Form, Input, Button, Typography, App } from "antd";
 import { login, getMe } from "../../api/auth";
 import { useDispatch } from "react-redux";
 import { loginSuccess } from "../../features/user/userSlice";
 import { useNavigate } from "react-router-dom";
+import { TokenManager } from "../../utils/tokenManager";
 
 const { Title } = Typography;
 
@@ -11,6 +12,7 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { message } = App.useApp();
 
   const onFinish = async (values: any) => {
     console.log("表单提交内容：", values);
@@ -18,8 +20,14 @@ const Login: React.FC = () => {
     try {
       const res = await login(values);
       const { access_token, refresh_token } = res.data;
-      localStorage.setItem("access_token", access_token);
-      localStorage.setItem("refresh_token", refresh_token);
+      
+      // 使用 TokenManager 存储 token
+      TokenManager.storeTokens({
+        access_token,
+        refresh_token,
+        token_type: "bearer"
+      });
+      
       // 登录后获取用户信息
       const userInfoResp = await getMe();
       console.log("getMe 响应：", userInfoResp);
@@ -40,6 +48,7 @@ const Login: React.FC = () => {
     } catch (e: any) {
       const msg = e?.response?.data?.message || e.message || "登录失败";
       message.error(msg);
+      console.error("登录错误:", e);
     } finally {
       setLoading(false);
     }

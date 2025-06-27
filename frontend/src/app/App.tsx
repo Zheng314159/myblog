@@ -1,21 +1,21 @@
 import React, { useEffect } from "react";
-import { Layout, ConfigProvider, theme } from "antd";
+import { App as AntdApp, ConfigProvider, theme } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { Helmet } from "react-helmet";
 import AppRouter from "./router";
 import Notification from "../components/Notification/Notification";
 import { useDispatch } from "react-redux";
-import { loginSuccess, logout } from "../features/user/userSlice";
+import { loginSuccess, logout, setLoading } from "../features/user/userSlice";
 import { getMe } from "../api/auth";
-
-const { Header, Content, Footer } = Layout;
+import { TokenManager } from "../utils/tokenManager";
 
 const App: React.FC = () => {
   const dispatch = useDispatch();
 
   useEffect(() => {
-    const access_token = localStorage.getItem("access_token");
-    const refresh_token = localStorage.getItem("refresh_token");
+    const access_token = TokenManager.getAccessToken();
+    const refresh_token = TokenManager.getRefreshToken();
+    
     if (access_token) {
       getMe()
         .then(res => {
@@ -32,28 +32,25 @@ const App: React.FC = () => {
           }));
         })
         .catch(() => {
+          // 如果获取用户信息失败，清除无效的token
+          TokenManager.clearTokens();
           dispatch(logout());
         });
+    } else {
+      // 如果没有token，直接设置loading为false
+      dispatch(setLoading(false));
     }
   }, [dispatch]);
 
   return (
     <ConfigProvider locale={zhCN} theme={{ algorithm: theme.defaultAlgorithm }}>
-      <Helmet>
-        <title>FastAPI 博客系统</title>
-      </Helmet>
-      <Layout style={{ minHeight: "100vh" }}>
-        <Header style={{ background: "#fff", padding: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 22 }}>FastAPI 博客系统</div>
-        </Header>
-        <Content style={{ margin: "24px 16px 0" }}>
-          <AppRouter />
-        </Content>
-        <Footer style={{ textAlign: "center" }}>
-          FastAPI Blog ©2025 Created by OpenAI GPT-4
-        </Footer>
+      <AntdApp>
+        <Helmet>
+          <title>FastAPI 博客系统</title>
+        </Helmet>
+        <AppRouter />
         <Notification />
-      </Layout>
+      </AntdApp>
     </ConfigProvider>
   );
 };

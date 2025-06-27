@@ -1,22 +1,36 @@
 import React, { useMemo } from "react";
-// @ts-expect-error: no types
-import MarkdownIt from "markdown-it";
-// @ts-expect-error: no types
-import mk from "markdown-it-katex";
-import "katex/dist/katex.min.css";
+import MarkdownRenderer from "../../utils/markdownRenderer";
 
-const md = MarkdownIt({
-  html: true,
-  linkify: true,
-  typographer: true,
-}).use(mk);
+interface MarkdownViewerProps {
+  content: string;
+  className?: string;
+  style?: React.CSSProperties;
+}
 
-const MarkdownViewer: React.FC<{ content: string }> = ({ content }) => {
-  const html = useMemo(() => md.render(content || ""), [content]);
+const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ 
+  content, 
+  className = "markdown-content",
+  style = { 
+    padding: 16, 
+    background: '#ffffff', 
+    borderRadius: 4,
+    fontSize: '14px',
+    lineHeight: '1.6'
+  }
+}) => {
+  const html = useMemo(() => {
+    try {
+      return MarkdownRenderer.render(content || "");
+    } catch (error) {
+      console.error('Markdown rendering error:', error);
+      return `<div class="markdown-error">渲染错误: ${error}</div>`;
+    }
+  }, [content]);
+
   return (
     <div
-      style={{ padding: 12, background: '#fafafa', borderRadius: 4 }}
-      className="markdown-body"
+      style={style}
+      className={className}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );

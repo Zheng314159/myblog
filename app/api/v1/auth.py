@@ -20,7 +20,22 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     """
     获取当前登录用户信息
     """
-    return current_user
+    print(f"Debug: current_user = {current_user}")
+    try:
+        # 确保返回的用户信息包含必要的字段
+        user_info = {
+            "id": current_user.get("user_id"),
+            "username": current_user.get("sub"),
+            "role": current_user.get("role"),
+            "is_active": True  # 默认值
+        }
+        print(f"Debug: returning user_info = {user_info}")
+        return user_info
+    except Exception as e:
+        print(f"Error in /me endpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/register", response_model=Token)

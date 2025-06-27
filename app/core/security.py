@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Optional, Union, Annotated
+import logging
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
@@ -10,6 +11,9 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.user import User, UserRole
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -37,7 +41,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
     
     to_encode.update({"exp": expire, "type": "access"})
+    logger.info(f"Creating access token with data: {to_encode}")
     encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+    logger.info(f"Access token created: {encoded_jwt[:20]}...")
     return encoded_jwt
 
 
@@ -46,16 +52,24 @@ def create_refresh_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
     to_encode.update({"exp": expire, "type": "refresh"})
+    logger.info(f"Creating refresh token with data: {to_encode}")
     encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+    logger.info(f"Refresh token created: {encoded_jwt[:20]}...")
     return encoded_jwt
 
 
 def verify_token(token: str) -> Optional[dict]:
     """Verify and decode token"""
     try:
+        logger.info(f"Verifying token: {token[:20]}...")
+        logger.info(f"Using secret key: {settings.secret_key[:20]}...")
+        logger.info(f"Using algorithm: {settings.algorithm}")
+        
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        logger.info(f"Token verification successful: {payload}")
         return payload
-    except JWTError:
+    except JWTError as e:
+        logger.error(f"Token verification failed: {e}")
         return None
 
 

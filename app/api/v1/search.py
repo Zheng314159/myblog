@@ -1,6 +1,8 @@
 from typing import List, Optional, Annotated
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text, select
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.search import FTSSearch
@@ -21,15 +23,78 @@ async def search_articles(
     """全文搜索文章
     
     基于 SQLite FTS5 全文索引搜索文章标题和内容
+    如果FTS索引不可用，则使用简单的LIKE搜索作为备选
     """
-    results = await FTSSearch.search_articles(
-        db=db,
-        query=q,
-        skip=skip,
-        limit=limit,
-        status=status
-    )
-    return results
+    try:
+        # 首先尝试使用FTS搜索
+        results = await FTSSearch.search_articles(
+            db=db,
+            query=q,
+            skip=skip,
+            limit=limit,
+            status=status
+        )
+        
+        # 如果FTS搜索返回结果，直接返回
+        if results:
+            return results
+            
+        # 如果FTS搜索没有结果，使用简单的LIKE搜索作为备选
+        print(f"FTS搜索无结果，使用LIKE搜索备选方案")
+        return await search_articles_fallback(db, q, skip, limit, status)
+        
+    except Exception as e:
+        print(f"FTS搜索失败，使用LIKE搜索备选方案: {e}")
+        return await search_articles_fallback(db, q, skip, limit, status)
+
+
+async def search_articles_fallback(
+    db: AsyncSession,
+    query: str,
+    skip: int = 0,
+    limit: int = 10,
+    status: Optional[ArticleStatus] = None
+) -> List[ArticleListResponse]:
+    """备选搜索方案：使用简单的LIKE搜索"""
+    from app.models.article import Article
+    from app.models.tag import ArticleTag, Tag
+    from app.schemas.article import UserBasicInfo, TagInfo
+    
+    # 构建查询
+    search_query = select(Article).options(
+        selectinload(Article.author),
+        selectinload(Article.tags).selectinload(ArticleTag.tag),
+        selectinload(Article.comments)
+    ).where(
+        (Article.title.contains(query) | Article.content.contains(query)) &
+        (Article.status == ArticleStatus.PUBLISHED)
+    ).order_by(Article.created_at.desc()).offset(skip).limit(limit)
+    
+    result = await db.execute(search_query)
+    articles = result.scalars().all()
+    
+    # 构建响应
+    responses = []
+    for article in articles:
+        author_info = UserBasicInfo.model_validate(article.author)
+        tag_infos = [TagInfo.model_validate(at.tag) for at in article.tags if at.tag is not None]
+        comment_count = len(article.comments) if article.comments else 0
+        
+        response = ArticleListResponse(
+            id=article.id,
+            title=article.title,
+            summary=article.summary,
+            status=article.status,
+            author=author_info,
+            tags=tag_infos,
+            created_at=article.created_at,
+            updated_at=article.updated_at,
+            view_count=0,
+            comment_count=comment_count
+        )
+        responses.append(response)
+    
+    return responses
 
 
 @router.get("/suggestions")
@@ -103,13 +168,11 @@ async def initialize_search_index(db: Annotated[AsyncSession, Depends(get_db)]):
 @router.get("/stats")
 async def get_search_stats(db: Annotated[AsyncSession, Depends(get_db)]):
     """获取搜索统计信息"""
-    from sqlalchemy import text
-    
     # 获取 FTS5 表统计信息
     result = await db.execute(text("SELECT COUNT(*) FROM articles_fts"))
     fts_count = result.scalar()
     
-    # 获取文章总数
+    # 获取文章总数 - 使用大写的PUBLISHED状态
     result = await db.execute(text("SELECT COUNT(*) FROM article WHERE status = 'PUBLISHED'"))
     article_count = result.scalar()
     

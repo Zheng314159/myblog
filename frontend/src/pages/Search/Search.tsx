@@ -18,7 +18,7 @@ const Search: React.FC = () => {
 
   useEffect(() => {
     setLoading(true);
-    searchArticles(query, { skip: 0, limit: 20 })
+    searchArticles(query, { skip: 0, limit: 20, status: 'published' })
       .then((res) => {
         setArticles(res.data || []);
         setLoading(false);

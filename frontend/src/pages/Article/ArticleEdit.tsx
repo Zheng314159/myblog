@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, unstable_usePrompt as usePrompt } from "react-router-dom";
 import { Card, Form, Input, Button, Select, Spin, Row, Col, Divider, Space, App } from "antd";
 import { createArticle, getArticle, updateArticle } from "../../api/article";
 import MarkdownEditor from "../../components/MarkdownEditor/MarkdownEditor";
@@ -22,6 +22,8 @@ const ArticleEdit: React.FC = () => {
   const { userInfo } = useSelector((state: RootState) => state.user);
   const navigate = useNavigate();
   const { message } = App.useApp();
+  const [saveStatus, setSaveStatus] = useState<'published' | 'draft'>('draft');
+  const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
     getTags().then((res: any) => {
@@ -46,7 +48,7 @@ const ArticleEdit: React.FC = () => {
       ) as string[];
       setTags(uniqueTags);
     });
-    if (id) {
+    if (id && id !== 'new') {
       setLoading(true);
       getArticle(id).then((res: any) => {
         const data = res.data || res;
@@ -68,6 +70,30 @@ const ArticleEdit: React.FC = () => {
     }
   }, [id, form]);
 
+  // 监听内容变更，标记未保存
+  useEffect(() => {
+    setIsDirty(true);
+  }, [content]);
+
+  // 页面关闭拦截
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
+  const handleSave = async (status: 'published' | 'draft', silent = false) => {
+    setSaveStatus(status);
+    form.submit();
+    if (!silent) setIsDirty(false);
+  };
+
   // 权限校验：仅作者可编辑
   if (id && articleAuthorId !== null && userInfo && userInfo.id !== articleAuthorId) {
     return (
@@ -84,14 +110,29 @@ const ArticleEdit: React.FC = () => {
       const cleanTags = (values.tags || []).filter(
         (t: any) => !!t && String(t).trim() !== ''
       ).map((t: any) => String(t).trim());
-      if (id) {
-        await updateArticle(id, { ...values, tags: cleanTags, content });
-        message.success("文章更新成功");
+      const data = {
+        title: values.title?.trim() || "",
+        content: content?.trim() || "",
+        tags: cleanTags,
+        summary: values.summary?.trim() || content?.slice(0, 100) || "",
+        status: saveStatus,
+        has_latex: /\$[^$]+\$|\$\$[\s\S]*?\$\$/.test(content),
+        latex_content: null
+      };
+      if (!data.title || !data.content) {
+        message.error("标题和内容不能为空");
+        setLoading(false);
+        return;
+      }
+      if (id && id !== 'new') {
+        await updateArticle(id, { ...data });
+        message.success(saveStatus === 'published' ? "文章发布成功" : "草稿已保存");
       } else {
-        const res: any = await createArticle({ ...values, tags: cleanTags, content });
-        message.success("文章发布成功");
+        const res: any = await createArticle(data);
+        message.success(saveStatus === 'published' ? "文章发布成功" : "草稿已保存");
         navigate(`/article/${res.id || res.data?.id}`);
       }
+      setIsDirty(false);
     } catch (e: any) {
       message.error(e.message || "操作失败");
     } finally {
@@ -192,11 +233,14 @@ const ArticleEdit: React.FC = () => {
       <Card 
         title={
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>{id ? "编辑文章" : "发布新文章"}</span>
+            <span>{id && id !== 'new' ? "编辑文章" : "发布新文章"}</span>
             <Space>
               <Button onClick={() => navigate(-1)}>返回</Button>
-              <Button type="primary" onClick={() => form.submit()} loading={loading}>
-                {id ? "保存修改" : "发布文章"}
+              <Button type="primary" onClick={() => handleSave('published')} loading={loading}>
+                发布文章
+              </Button>
+              <Button  type="primary" onClick={() => handleSave('draft')} loading={loading}>
+                保存为草稿
               </Button>
             </Space>
           </div>
@@ -263,7 +307,7 @@ const ArticleEdit: React.FC = () => {
 
             <div style={{ textAlign: 'center' }}>
               <Space size="large">
-                <Button size="large" onClick={() => navigate(-1)}>
+                <Button size="large" type="primary" onClick={() => navigate(-1)}>
                   取消
                 </Button>
                 <Button 
@@ -272,7 +316,7 @@ const ArticleEdit: React.FC = () => {
                   htmlType="submit" 
                   loading={loading}
                 >
-                  {id ? "保存修改" : "发布文章"}
+                  {id && id !== 'new' ? "保存修改" : "发布文章"}
                 </Button>
               </Space>
             </div>

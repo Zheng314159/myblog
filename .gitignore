@@ -1,4 +1,4 @@
 # 忽略 node_modules
 frontend/node_modules
-myblogcursorenv
+myblogcursorenv310
 __pycache__

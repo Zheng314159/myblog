@@ -20,7 +20,9 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
 }) => {
   const html = useMemo(() => {
     try {
-      return MarkdownRenderer.render(content || "");
+      const rendered = MarkdownRenderer.render(content || "");
+      console.log('[MarkdownViewer] content:', content, '\n[MarkdownViewer] 渲染结果:', rendered);
+      return rendered;
     } catch (error) {
       console.error('Markdown rendering error:', error);
       return `<div class="markdown-error">渲染错误: ${error}</div>`;

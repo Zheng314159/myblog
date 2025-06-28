@@ -8,6 +8,9 @@ from app.core.config import settings
 from app.core.redis import redis_manager
 from app.core.security import verify_token
 from app.core.exceptions import AuthenticationError
+from app.models.user import User
+from app.core.database import async_session
+from sqlalchemy import select
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,18 +45,27 @@ class AuthMiddleware(BaseHTTPMiddleware):
             "/api/v1/auth/login", "/api/v1/auth/register",
             "/api/v1/articles", "/api/v1/articles/",  # 允许匿名访问文章列表
             "/api/v1/tags/popular",  # 允许匿名访问热门标签
+            "/admin", "/admin/",  # 放行admin后台
+            "/jianai", "/jianai/",  # 放行自定义后台路径
         ]
         
         # 检查是否是公开路径
         is_public = (
             request.url.path in public_paths or 
+            request.url.path.startswith("/admin") or
+            request.url.path.startswith("/jianai") or
             request.url.path.startswith("/static") or 
+            request.url.path.startswith("/statics") or
             request.url.path.startswith("/docs") or 
             request.url.path.startswith("/redoc") or 
             request.url.path.startswith("/api/v1/search/") or
             request.url.path.startswith("/api/v1/oauth/") or
-            request.url.path.startswith("/api/v1/articles/") or  # 允许所有文章相关接口匿名访问
-            request.url.path.startswith("/api/v1/tags/")  # 允许所有标签相关接口匿名访问
+            (
+                request.url.path in ["/api/v1/articles", "/api/v1/articles/"] and request.method == "GET"
+            ) or
+            (
+                request.url.path.startswith("/api/v1/tags") and request.method == "GET"
+            )
         )
         
         logger.info(f"Auth check for path: {request.url.path}, is_public: {is_public}")
@@ -62,7 +74,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
             logger.info(f"Public path, skipping auth: {request.url.path}")
             return await call_next(request)
         
-        # 对于需要认证的路径，检查Authorization头
+        # Debug: 打印所有请求头
+        logger.info(f"All request headers: {dict(request.headers)}")
         auth_header = request.headers.get("Authorization")
         logger.info(f"Auth header: {auth_header}")
         
@@ -88,24 +101,29 @@ class AuthMiddleware(BaseHTTPMiddleware):
             raise AuthenticationError("Invalid or expired token")
         
         # Add user info to request state
-        request.state.user = payload
-        logger.info(f"User authenticated: {payload.get('sub')} for path: {request.url.path}")
+        async with async_session() as db:
+            result = await db.execute(select(User).where(User.username == payload.get("sub")))
+            user = result.scalar_one_or_none()
+            if not user:
+                logger.error(f"User not found for token subject: {payload.get('sub')}")
+                raise AuthenticationError("User not found")
+            request.state.user = user
+            logger.info(f"User authenticated: {user.username} for path: {request.url.path}")
         
         return await call_next(request)
 
 
 def setup_middleware(app):
     """Setup all middleware"""
-    
+    print("[DEBUG] Allowed origins:", settings.allowed_origins)
     # CORS middleware
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
-        allow_headers=["*"],
+        allow_headers=["*"]
     )
-    
     # Custom middleware
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(AuthMiddleware) 

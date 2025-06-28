@@ -20,19 +20,38 @@ export class MarkdownRenderer {
    */
   static render(content: string, options: MarkdownRenderOptions = {}): string {
     try {
-      // 预处理内容，处理 LaTeX 公式
-      const processedContent = this.preprocessContent(content);
-      
-      // 渲染 Markdown
-      let rendered = md.render(processedContent);
-      
-      // 后处理，添加额外的样式和功能
-      rendered = this.postprocessContent(rendered);
-      
+      // 1. 先用 markdown-it 渲染 markdown
+      let rendered = md.render(content || "");
+
+      // 2. 再用 KaTeX 渲染 HTML 里的公式
+      // 块级公式 $$...$$
+      rendered = rendered.replace(/\$\$([\s\S]*?)\$\$/g, (match, formula) => {
+        try {
+          return katex.renderToString(formula.trim(), {
+            throwOnError: false,
+            errorColor: '#cc0000',
+            displayMode: true
+          });
+        } catch (error) {
+          return `<span style=\"color: #cc0000;\">LaTeX 错误: ${error}</span>`;
+        }
+      });
+      // 行内公式 $...$
+      rendered = rendered.replace(/\$([^$\n]+?)\$/g, (match, formula) => {
+        try {
+          return katex.renderToString(formula.trim(), {
+            throwOnError: false,
+            errorColor: '#cc0000',
+            displayMode: false
+          });
+        } catch (error) {
+          return `<span style=\"color: #cc0000;\">LaTeX 错误: ${error}</span>`;
+        }
+      });
       return rendered;
     } catch (error) {
       console.error('Markdown rendering error:', error);
-      return `<div class="markdown-error">渲染错误: ${error}</div>`;
+      return `<div class=\"markdown-error\">渲染错误: ${error}</div>`;
     }
   }
 

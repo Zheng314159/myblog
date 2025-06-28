@@ -1,6 +1,6 @@
 import request from './request';
 
-export const getTags = () => request.get('/tags');
+export const getTags = () => request.get('/tags/');
 export const getPopularTags = () => request.get('/tags/popular');
 
 // fastapi还未实现
@@ -15,20 +15,20 @@ export const getPopularTags = () => request.get('/tags/popular');
 
 // 获取所有标签
 export const getArgsTags = (params?: { page?: number; size?: number; search?: string }) =>
-  request.get('/api/v1/tag/', { params });
+  request.get('/tags/', { params });
 
 // 获取热门标签
-export const getHotTags = () => request.get('/api/v1/tag/hot');
+export const getHotTags = () => request.get('/tags/popular');
 
 // 获取标签详情及文章
 export const getTagDetail = (tagId: number, params?: { page?: number; size?: number }) =>
-  request.get(`/api/v1/tag/${tagId}`, { params });
+  request.get(`/tags/${tagId}`, { params });
 
 // 管理员：新增、编辑、删除标签
 export const createTag = (data: { name: string; description?: string }) =>
-  request.post('/api/v1/tag/', data);
+  request.post('/tags/', data);
 
 export const updateTag = (tagId: number, data: { name?: string; description?: string }) =>
-  request.put(`/api/v1/tag/${tagId}`, data);
+  request.put(`/tags/${tagId}`, data);
 
-export const deleteTag = (tagId: number) => request.delete(`/api/v1/tag/${tagId}`);
+export const deleteTag = (tagId: number) => request.delete(`/tags/${tagId}`);

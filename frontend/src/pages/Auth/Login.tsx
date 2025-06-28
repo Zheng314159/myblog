@@ -20,7 +20,12 @@ const Login: React.FC = () => {
     try {
       const res = await login(values);
       const { access_token, refresh_token } = res.data;
-      
+      console.log('[DEBUG] 登录接口返回:', res.data);
+      if (!access_token || !refresh_token) {
+        message.error('登录失败：未获取到有效的 access_token 或 refresh_token');
+        setLoading(false);
+        return;
+      }
       // 使用 TokenManager 存储 token
       TokenManager.storeTokens({
         access_token,

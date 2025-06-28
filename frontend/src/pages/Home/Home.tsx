@@ -15,9 +15,9 @@ const Home: React.FC = () => {
 
   useEffect(() => {
     setLoading(true);
-    getArticles().then((res) => {
+    getArticles({ status: 'published' }).then((res) => {
       const allArticles = res.items || res.data || [];
-      const adminArticles = allArticles.filter((item: any) => item.author?.role === "admin");
+      const adminArticles = allArticles.filter((item: any) => item.author?.role === 'admin');
       setArticles(adminArticles);
       setLoading(false);
     });

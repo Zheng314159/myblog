@@ -5,9 +5,11 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from sqlmodel import SQLModel
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 from app.core.config import settings
-from app.core.database import engine, create_db_and_tables
+from app.core.database import engine, create_db_and_tables, async_session
 from app.core.redis import redis_manager
 from app.core.middleware import setup_middleware
 from app.core.exceptions import BlogException
@@ -20,9 +22,17 @@ from app.api.v1.websocket import router as websocket_router
 from app.api.v1.search import router as search_router
 from app.api.v1.scheduler import router as scheduler_router
 from app.api.v1.oauth import router as oauth_router
-from app.api.v1 import admin as admin_module
-import fastapi_admin
-import tortoise
+from sqladmin import Admin, ModelView
+from sqladmin.authentication import AuthenticationBackend
+from starlette.responses import RedirectResponse
+from sqlalchemy import select
+from app.models.user import User
+from app.models.article import Article
+from app.models.tag import Tag
+from app.models.comment import Comment
+from app.core.security import verify_password
+
+ADMIN_PATH = "/jianai"  # 可自定义后台路径
 
 
 @asynccontextmanager
@@ -47,12 +57,26 @@ async def lifespan(app: FastAPI):
     await start_scheduler()
     print("Scheduler started")
     
-    # Initialize Tortoise ORM (fastapi-admin requirement)
-    await admin_module.init_tortoise()
-    # Configure fastapi-admin
-    await admin_module.on_startup()
-    # Mount fastapi-admin backend
-    app.mount("/admin", fastapi_admin.app)
+    # Create management backend
+    admin = Admin(app, engine, authentication_backend=AdminAuth(secret_key="your-random-secret-key"), base_url=ADMIN_PATH)
+
+    class UserAdmin(ModelView, model=User):
+        column_list = ["id", "username", "email", "role", "is_active", "created_at"]
+        form_excluded_columns = ["hashed_password"]
+
+    class ArticleAdmin(ModelView, model=Article):
+        column_list = ["id", "title", "author_id", "status", "created_at"]
+
+    class TagAdmin(ModelView, model=Tag):
+        column_list = ["id", "name", "description", "created_at"]
+
+    class CommentAdmin(ModelView, model=Comment):
+        column_list = ["id", "article_id", "author_id", "content", "created_at", "is_approved"]
+
+    admin.add_view(UserAdmin)
+    admin.add_view(ArticleAdmin)
+    admin.add_view(TagAdmin)
+    admin.add_view(CommentAdmin)
     
     yield
     
@@ -167,14 +191,45 @@ async def health_check():
     }
 
 
-@app.on_event("startup")
-async def startup_event():
-    # Initialize Tortoise ORM (fastapi-admin requirement)
-    await admin_module.init_tortoise()
-    # Configure fastapi-admin
-    await admin_module.on_startup()
-    # Mount fastapi-admin backend
-    app.mount("/admin", fastapi_admin.app)
+class AdminAuth(AuthenticationBackend):
+    async def authenticate(self, request: Request):
+        if request.session.get("user_id"):
+            async with async_session() as session:
+                user = await session.get(User, request.session["user_id"])
+                if user and user.role == "admin":
+                    return True
+        return False
+
+    async def login(self, request: Request) -> bool:
+        form = await request.form()
+        username = str(form.get("username") or "")
+        password = str(form.get("password") or "")
+        async with async_session() as session:
+            result = await session.execute(select(User).where(getattr(User, "username") == username))
+            user = result.scalar_one_or_none()
+            if (
+                user and user.role == "admin"
+                and user.hashed_password
+                and verify_password(password, user.hashed_password)
+            ):
+                request.session["user_id"] = user.id
+                return True
+        return False
+
+    async def logout(self, request: Request) -> None:
+        request.session.pop("user_id", None)
+
+
+class NoCacheAdminMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith(ADMIN_PATH):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+app.add_middleware(NoCacheAdminMiddleware)
 
 
 if __name__ == "__main__":

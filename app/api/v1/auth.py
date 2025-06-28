@@ -22,13 +22,21 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     """
     print(f"Debug: current_user = {current_user}")
     try:
-        # 确保返回的用户信息包含必要的字段
-        user_info = {
-            "id": current_user.get("user_id"),
-            "username": current_user.get("sub"),
-            "role": current_user.get("role"),
-            "is_active": True  # 默认值
-        }
+        # 兼容 User ORM 对象和 dict
+        if not isinstance(current_user, dict):
+            user_info = {
+                "id": current_user.id,
+                "username": current_user.username,
+                "role": getattr(current_user, "role", None),
+                "is_active": getattr(current_user, "is_active", True)
+            }
+        else:
+            user_info = {
+                "id": current_user.get("user_id"),
+                "username": current_user.get("sub"),
+                "role": current_user.get("role"),
+                "is_active": True  # 默认值
+            }
         print(f"Debug: returning user_info = {user_info}")
         return user_info
     except Exception as e:

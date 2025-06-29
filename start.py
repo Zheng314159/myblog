@@ -38,16 +38,40 @@ REFRESH_TOKEN_EXPIRE_DAYS=7
 # Redis Settings
 REDIS_URL=redis://localhost:6379/0
 
+# Email Settings
+SMTP_SERVER=smtp.qq.com
+SMTP_PORT=587
+EMAIL_USER=your-email@qq.com
+EMAIL_PASSWORD=your-app-password
+EMAIL_FROM=your-email@qq.com
+EMAIL_ENABLED=false
+
 # CORS Settings
 ALLOWED_ORIGINS=["http://localhost:3000", "http://localhost:8080"]
 
 # App Settings
 APP_NAME=FastAPI Blog System
 DEBUG=true
+
+# Scheduler Settings
+TIMEZONE=Asia/Shanghai
+
+# OAuth Settings
+# GitHub OAuth - Get from https://github.com/settings/developers
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+
+# Google OAuth - Get from https://console.cloud.google.com/apis/credentials
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# OAuth Base URL
+OAUTH_BASE_URL=http://localhost:8000
 """
         with open(env_file, 'w', encoding='utf-8') as f:
             f.write(env_content)
         print("✅ .env 文件已创建")
+        print("⚠️  请编辑 .env 文件，配置你的邮箱信息并设置 EMAIL_ENABLED=true")
     else:
         print("✅ .env 文件已存在")
 

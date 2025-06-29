@@ -29,17 +29,18 @@ request.interceptors.response.use(
     return response;
   },
   async (error) => {
+    const isSendCodeApi = error?.config?.url?.includes('/auth/send-change-password-code');
     if (error.response?.status === 401) {
       console.log("Authentication error detected");
-      
-      // Debug token information
       TokenManager.debugTokens();
-      
-      // Clear invalid tokens
       TokenManager.clearTokens();
-      
-      // Redirect to login page
-      window.location.href = "/login";
+      if (isSendCodeApi) {
+        // 只弹窗提示
+        window.alert('登录状态已失效，请重新登录后再操作！');
+      } else {
+        // 其他接口自动跳转
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(error);
   }

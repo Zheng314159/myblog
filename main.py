@@ -1,3 +1,7 @@
+# 在所有导入前加载dotenv
+from dotenv import load_dotenv
+load_dotenv()
+
 import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
@@ -25,10 +29,10 @@ from app.api.v1.oauth import router as oauth_router
 from sqladmin import Admin, ModelView
 from sqladmin.authentication import AuthenticationBackend
 from starlette.responses import RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from app.models.user import User
 from app.models.article import Article
-from app.models.tag import Tag
+from app.models.tag import Tag, ArticleTag
 from app.models.comment import Comment
 from app.core.security import verify_password
 
@@ -58,20 +62,141 @@ async def lifespan(app: FastAPI):
     print("Scheduler started")
     
     # Create management backend
-    admin = Admin(app, engine, authentication_backend=AdminAuth(secret_key="your-random-secret-key"), base_url=ADMIN_PATH)
+    admin = Admin(
+        app, 
+        engine, 
+        authentication_backend=AdminAuth(secret_key="your-random-secret-key"), 
+        base_url=ADMIN_PATH,
+        title="博客管理系统",
+        logo_url="https://preview.tabler.io/static/logo-white.svg"
+    )
 
     class UserAdmin(ModelView, model=User):
         column_list = ["id", "username", "email", "role", "is_active", "created_at"]
         form_excluded_columns = ["hashed_password"]
+        can_create = True
+        can_edit = True
+        can_delete = True
+        can_view_details = True
+        name = "用户管理"
+        name_plural = "用户"
+        form_include_pk = False
+        form_widget_args = {
+            "hashed_password": {"readonly": True}
+        }
+        
+        async def delete_model(self, request: Request, pks: list) -> bool:
+            """自定义删除方法，防止删除管理员用户"""
+            async with async_session() as session:
+                try:
+                    # 检查是否要删除管理员用户
+                    for pk in pks:
+                        result = await session.execute(select(User).where(User.id == pk))
+                        user = result.scalar_one_or_none()
+                        if user and user.role == "admin":
+                            print(f"不能删除管理员用户: {user.username}")
+                            return False
+                    
+                    for pk in pks:
+                        # 删除用户相关的评论
+                        await session.execute(delete(Comment).where(Comment.author_id == pk))
+                        
+                        # 删除用户的所有文章（包括文章标签关联）
+                        article_result = await session.execute(select(Article).where(Article.author_id == pk))
+                        user_articles = article_result.scalars().all()
+                        
+                        for article in user_articles:
+                            # 删除文章相关的评论
+                            await session.execute(delete(Comment).where(Comment.article_id == article.id))
+                            # 删除文章标签关联
+                            await session.execute(delete(ArticleTag).where(ArticleTag.article_id == article.id))
+                        
+                        # 删除用户的所有文章
+                        await session.execute(delete(Article).where(Article.author_id == pk))
+                    
+                    # 删除用户
+                    for pk in pks:
+                        await session.execute(delete(User).where(User.id == pk))
+                    
+                    await session.commit()
+                    return True
+                except Exception as e:
+                    await session.rollback()
+                    print(f"删除用户失败: {e}")
+                    return False
 
     class ArticleAdmin(ModelView, model=Article):
         column_list = ["id", "title", "author_id", "status", "created_at"]
+        can_create = True
+        can_edit = True
+        can_delete = True
+        can_view_details = True
+        name = "文章管理"
+        name_plural = "文章"
+        form_include_pk = False
+        form_excluded_columns = ["created_at", "updated_at", "published_at"]
+        
+        async def delete_model(self, request: Request, pks: list) -> bool:
+            """自定义删除方法，允许管理员删除所有文章"""
+            async with async_session() as session:
+                try:
+                    for pk in pks:
+                        # 删除文章相关的评论（包括子评论）
+                        await session.execute(delete(Comment).where(Comment.article_id == pk))
+                        
+                        # 删除文章标签关联
+                        await session.execute(delete(ArticleTag).where(ArticleTag.article_id == pk))
+                    
+                    # 删除文章
+                    for pk in pks:
+                        await session.execute(delete(Article).where(Article.id == pk))
+                    
+                    await session.commit()
+                    return True
+                except Exception as e:
+                    await session.rollback()
+                    print(f"删除文章失败: {e}")
+                    return False
 
     class TagAdmin(ModelView, model=Tag):
         column_list = ["id", "name", "description", "created_at"]
+        can_create = True
+        can_edit = True
+        can_delete = True
+        can_view_details = True
+        name = "标签管理"
+        name_plural = "标签"
+        form_include_pk = False
+        form_excluded_columns = ["created_at"]
 
     class CommentAdmin(ModelView, model=Comment):
         column_list = ["id", "article_id", "author_id", "content", "created_at", "is_approved"]
+        can_create = True
+        can_edit = True
+        can_delete = True
+        can_view_details = True
+        name = "评论管理"
+        name_plural = "评论"
+        form_include_pk = False
+        form_excluded_columns = ["created_at", "updated_at"]
+        
+        async def delete_model(self, request: Request, pks: list) -> bool:
+            """自定义删除方法，删除评论时也删除子评论"""
+            async with async_session() as session:
+                try:
+                    for pk in pks:
+                        # 删除子评论
+                        await session.execute(delete(Comment).where(Comment.parent_id == pk))
+                        
+                        # 删除评论本身
+                        await session.execute(delete(Comment).where(Comment.id == pk))
+                    
+                    await session.commit()
+                    return True
+                except Exception as e:
+                    await session.rollback()
+                    print(f"删除评论失败: {e}")
+                    return False
 
     admin.add_view(UserAdmin)
     admin.add_view(ArticleAdmin)
@@ -102,7 +227,7 @@ app = FastAPI(
 )
 
 # Setup middleware
-setup_middleware(app)
+setup_middleware(app)  # 恢复中间件
 
 
 # Exception handlers
@@ -204,11 +329,14 @@ class AdminAuth(AuthenticationBackend):
         form = await request.form()
         username = str(form.get("username") or "")
         password = str(form.get("password") or "")
+        
         async with async_session() as session:
-            result = await session.execute(select(User).where(getattr(User, "username") == username))
+            result = await session.execute(select(User).where(User.username == username))
             user = result.scalar_one_or_none()
+            
+            # 只有管理员可以登录管理后台
             if (
-                user and user.role == "admin"
+                user and user.role == "admin" and user.is_active
                 and user.hashed_password
                 and verify_password(password, user.hashed_password)
             ):
@@ -227,6 +355,63 @@ class NoCacheAdminMiddleware(BaseHTTPMiddleware):
             response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
+            
+            # 如果是HTML响应，添加JavaScript错误处理
+            if "text/html" in response.headers.get("content-type", ""):
+                if hasattr(response, 'body'):
+                    try:
+                        content = response.body.decode('utf-8')
+                        # 简化的JavaScript错误处理
+                        error_handler = """
+                        <script>
+                        // 立即阻止所有null元素错误
+                        (function() {
+                            // 重写console.error来隐藏错误
+                            var originalError = console.error;
+                            console.error = function() {
+                                var args = Array.prototype.slice.call(arguments);
+                                var message = args.join(' ');
+                                if (message.includes('Cannot read properties of null')) {
+                                    console.warn('Suppressed null element error:', message);
+                                    return;
+                                }
+                                return originalError.apply(console, args);
+                            };
+                            
+                            // 全局错误处理
+                            window.addEventListener('error', function(e) {
+                                if (e.message && e.message.includes('Cannot read properties of null')) {
+                                    console.warn('Blocked null element error:', e.message);
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    return false;
+                                }
+                            });
+                            
+                            // 处理Bootstrap特定的错误
+                            if (typeof $ !== 'undefined') {
+                                $(document).ready(function() {
+                                    // 延迟处理，确保DOM完全加载
+                                    setTimeout(function() {
+                                        // 安全地处理所有表单元素
+                                        $(document).on('change click', 'input, select, textarea', function(e) {
+                                            if (!this) {
+                                                console.warn('Preventing event on null element');
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                return false;
+                                            }
+                                        });
+                                    }, 100);
+                                });
+                            }
+                        })();
+                        </script>
+                        """
+                        content = content.replace('</head>', error_handler + '</head>')
+                        response.body = content.encode('utf-8')
+                    except Exception as e:
+                        print(f"Error processing response: {e}")
         return response
 
 app.add_middleware(NoCacheAdminMiddleware)

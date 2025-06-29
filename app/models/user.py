@@ -46,6 +46,7 @@ class User(UserBase, table=True):
 
 class UserCreate(UserBase):
     password: Optional[str] = None  # Optional for OAuth users
+    verification_code: Optional[str] = None  # Email verification code
 
 
 class UserUpdate(SQLModel):

@@ -6,6 +6,8 @@ import MainLayout from "../layouts/MainLayout";
 const Home = lazy(() => import("../pages/Home/Home"));
 const Login = lazy(() => import("../pages/Auth/Login"));
 const Register = lazy(() => import("../pages/Auth/Register"));
+const ForgotPassword = lazy(() => import("../pages/Auth/ForgotPassword"));
+const ResetPassword = lazy(() => import("../pages/Auth/ResetPassword"));
 const ArticleDetail = lazy(() => import("../pages/Article/ArticleDetail"));
 const ArticleEdit = lazy(() => import("../pages/Article/ArticleEdit"));
 const Profile = lazy(() => import("../pages/Profile/Profile"));
@@ -23,6 +25,8 @@ const AppRouter: React.FC = () => (
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/debug" element={<Debug />} />
         <Route path="/latex-test" element={<LaTeXTest />} />
         <Route path="/comment-test" element={<CommentTest />} />

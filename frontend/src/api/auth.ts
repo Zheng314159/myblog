@@ -11,6 +11,13 @@ export interface RegisterParams {
   email: string;
   password: string;
   full_name?: string;
+  verification_code?: string;  // Email verification code
+}
+
+export interface ChangePasswordParams {
+  current_password: string;
+  new_password: string;
+  verification_code?: string;  // Email verification code
 }
 
 export const login = async (data: LoginParams) => {
@@ -30,6 +37,14 @@ export const register = async (data: RegisterParams) => {
 };
 
 export const getMe = () => request.get("/auth/me");
+
+export const changePassword = async (data: ChangePasswordParams) => {
+  return request.post("/auth/change-password", data);
+};
+
+export const sendChangePasswordCode = async () => {
+  return request.post("/auth/send-change-password-code");
+};
 
 export const refreshToken = async (refresh_token: string) => {
   const response = await request.post("/auth/refresh", { refresh_token });

@@ -216,7 +216,8 @@ class FTSSearch:
         query: str,
         skip: int = 0,
         limit: int = 10,
-        status: Optional[ArticleStatus] = None
+        status: Optional[ArticleStatus] = None,
+        author: Optional[str] = None
     ) -> List[ArticleListResponse]:
         """搜索文章"""
         if not query.strip():
@@ -250,6 +251,11 @@ class FTSSearch:
         if status:
             sql += " AND a.status = :status"
             params["status"] = status.value
+        
+        # 添加作者过滤
+        if author:
+            sql += " AND a.author_id IN (SELECT id FROM user WHERE username = :author)"
+            params["author"] = author
         
         # 添加排序和分页
         sql += " ORDER BY search_rank DESC, a.created_at DESC LIMIT :limit OFFSET :skip"

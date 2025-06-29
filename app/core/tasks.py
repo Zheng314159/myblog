@@ -81,6 +81,26 @@ class TaskService:
             logger.error(f"发送评论通知邮件时发生错误: {e}")
     
     @staticmethod
+    async def send_verification_code_email_task(email: str, verification_code: str):
+        """发送验证码邮件的异步任务"""
+        try:
+            logger.info(f"开始发送验证码邮件给 {email}")
+            
+            # 模拟异步处理时间
+            await asyncio.sleep(1)
+            
+            # 发送验证码邮件
+            success = email_service.send_verification_code_email(email, verification_code)
+            
+            if success:
+                logger.info(f"验证码邮件发送成功: {email}")
+            else:
+                logger.error(f"验证码邮件发送失败: {email}")
+                
+        except Exception as e:
+            logger.error(f"发送验证码邮件时发生错误: {e}")
+    
+    @staticmethod
     async def process_user_registration_task(user: User):
         """处理用户注册的异步任务"""
         try:
@@ -130,6 +150,11 @@ def add_welcome_email_task(background_tasks: BackgroundTasks, email: str, userna
 def add_password_reset_email_task(background_tasks: BackgroundTasks, email: str, username: str, reset_token: str):
     """添加发送密码重置邮件的后台任务"""
     background_tasks.add_task(TaskService.send_password_reset_email_task, email, username, reset_token)
+
+
+def add_verification_code_email_task(background_tasks: BackgroundTasks, email: str, verification_code: str):
+    """添加发送验证码邮件的后台任务"""
+    background_tasks.add_task(TaskService.send_verification_code_email_task, email, verification_code)
 
 
 def add_comment_notification_task(

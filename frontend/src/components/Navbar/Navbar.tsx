@@ -20,7 +20,7 @@ const Navbar: React.FC = () => {
   return (
     <nav className="navbar">
       <NavLink to="/" className="nav-item">首页</NavLink>
-      <NavLink to="/search" className="nav-item">标签</NavLink>
+      <NavLink to="/search" className="nav-item">搜索</NavLink>
       {isAuthenticated && <NavLink to="/edit/new" className="nav-item">写文章</NavLink>}
       {isAuthenticated && <NavLink to="/profile" className="nav-item">我的</NavLink>}
       {!isAuthenticated ? (

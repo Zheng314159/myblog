@@ -18,7 +18,8 @@ async def search_articles(
     q: str = Query(..., description="搜索关键词"),
     skip: int = Query(0, ge=0, description="跳过记录数"),
     limit: int = Query(10, ge=1, le=100, description="返回记录数"),
-    status: Optional[ArticleStatus] = Query(None, description="文章状态过滤")
+    status: Optional[ArticleStatus] = Query(None, description="文章状态过滤"),
+    author: Optional[str] = Query(None, description="作者用户名过滤")
 ):
     """全文搜索文章
     
@@ -32,7 +33,8 @@ async def search_articles(
             query=q,
             skip=skip,
             limit=limit,
-            status=status
+            status=status,
+            author=author
         )
         
         # 如果FTS搜索返回结果，直接返回
@@ -41,11 +43,11 @@ async def search_articles(
             
         # 如果FTS搜索没有结果，使用简单的LIKE搜索作为备选
         print(f"FTS搜索无结果，使用LIKE搜索备选方案")
-        return await search_articles_fallback(db, q, skip, limit, status)
+        return await search_articles_fallback(db, q, skip, limit, status, author)
         
     except Exception as e:
         print(f"FTS搜索失败，使用LIKE搜索备选方案: {e}")
-        return await search_articles_fallback(db, q, skip, limit, status)
+        return await search_articles_fallback(db, q, skip, limit, status, author)
 
 
 async def search_articles_fallback(
@@ -53,11 +55,13 @@ async def search_articles_fallback(
     query: str,
     skip: int = 0,
     limit: int = 10,
-    status: Optional[ArticleStatus] = None
+    status: Optional[ArticleStatus] = None,
+    author: Optional[str] = None
 ) -> List[ArticleListResponse]:
     """备选搜索方案：使用简单的LIKE搜索"""
     from app.models.article import Article
     from app.models.tag import ArticleTag, Tag
+    from app.models.user import User
     from app.schemas.article import UserBasicInfo, TagInfo
     
     # 构建查询
@@ -68,7 +72,13 @@ async def search_articles_fallback(
     ).where(
         (Article.title.contains(query) | Article.content.contains(query)) &
         (Article.status == ArticleStatus.PUBLISHED)
-    ).order_by(Article.created_at.desc()).offset(skip).limit(limit)
+    )
+    
+    # 添加作者过滤
+    if author:
+        search_query = search_query.join(User).where(User.username == author)
+    
+    search_query = search_query.order_by(Article.created_at.desc()).offset(skip).limit(limit)
     
     result = await db.execute(search_query)
     articles = result.scalars().all()

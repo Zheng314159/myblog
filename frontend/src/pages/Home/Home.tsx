@@ -1,16 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { List, Tag, Input, Typography, Spin } from "antd";
+import { List, Tag, Typography, Spin } from "antd";
 import { getArticles } from "../../api/article";
-import { getPopularTags } from "../../api/tag";
 import { useNavigate } from "react-router-dom";
 
 const { Title } = Typography;
 
 const Home: React.FC = () => {
   const [articles, setArticles] = useState<any[]>([]);
-  const [tags, setTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -21,30 +18,11 @@ const Home: React.FC = () => {
       setArticles(adminArticles);
       setLoading(false);
     });
-    getPopularTags().then((res) => {
-      setTags(res.tags || res.data || []);
-    });
   }, []);
 
   return (
     <div>
       <Title level={2}>最新文章</Title>
-      <Input.Search
-        placeholder="搜索文章..."
-        enterButton
-        onSearch={(v) => navigate(`/search?q=${encodeURIComponent(v)}`)}
-        style={{ maxWidth: 400, marginBottom: 24 }}
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-      />
-      <div style={{ marginBottom: 16 }}>
-        热门标签：
-        {tags.map((tag) => (
-          <Tag key={typeof tag === 'string' ? tag : tag.name} color="blue" style={{ cursor: "pointer" }} onClick={() => navigate(`/search?q=${typeof tag === 'string' ? tag : tag.name}`)}>
-            {typeof tag === 'string' ? tag : tag.name}
-          </Tag>
-        ))}
-      </div>
       <Spin spinning={loading}>
         <List
           itemLayout="vertical"

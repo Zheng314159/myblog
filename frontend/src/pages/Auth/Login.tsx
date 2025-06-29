@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Form, Input, Button, Typography, App } from "antd";
 import { login, getMe } from "../../api/auth";
 import { useDispatch } from "react-redux";
@@ -10,9 +10,25 @@ const { Title } = Typography;
 
 const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
+  const [emailEnabled, setEmailEnabled] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { message } = App.useApp();
+
+  // 获取邮箱配置状态
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const response = await fetch('/api/v1/auth/config');
+        const config = await response.json();
+        setEmailEnabled(config.email_enabled);
+      } catch (error) {
+        console.error('获取配置失败:', error);
+        setEmailEnabled(false);
+      }
+    };
+    fetchConfig();
+  }, []);
 
   const onFinish = async (values: any) => {
     console.log("表单提交内容：", values);
@@ -59,6 +75,10 @@ const Login: React.FC = () => {
     }
   };
 
+  const handleForgotPassword = () => {
+    navigate("/forgot-password");
+  };
+
   return (
     <div style={{ maxWidth: 400, margin: "0 auto", padding: 32 }}>
       <Title level={3}>登录</Title>
@@ -73,6 +93,15 @@ const Login: React.FC = () => {
           <Button type="primary" htmlType="submit" loading={loading} block>登录</Button>
         </Form.Item>
       </Form>
+      
+      {emailEnabled && (
+        <div style={{ margin: "16px 0", textAlign: "center" }}>
+          <Button type="link" onClick={handleForgotPassword}>
+            忘记密码？
+          </Button>
+        </div>
+      )}
+      
       <div style={{ margin: "16px 0" }}>
         没有账号？<a href="/register">注册</a>
       </div>

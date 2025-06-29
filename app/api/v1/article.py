@@ -343,7 +343,8 @@ async def list_articles(
     limit: int = 10,
     status: Optional[ArticleStatus] = None,
     tag: Optional[str] = None,
-    search: Optional[str] = None
+    search: Optional[str] = None,
+    author: Optional[str] = None
 ):
     """获取文章列表"""
     query = select(Article).options(
@@ -364,6 +365,9 @@ async def list_articles(
     
     if tag:
         query = query.join(ArticleTag).join(Tag).where(Tag.name == tag)
+    
+    if author:
+        query = query.join(User).where(User.username == author)
     
     # 排序和分页
     query = query.order_by(Article.created_at.desc()).offset(skip).limit(limit)

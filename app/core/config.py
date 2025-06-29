@@ -1,6 +1,8 @@
 from typing import List
 from pydantic_settings import BaseSettings
 from pydantic import Field
+import os
+from dotenv import load_dotenv
 
 
 class Settings(BaseSettings):
@@ -32,6 +34,9 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173"
     ]
     
+    # Frontend Settings
+    frontend_url: str = "http://localhost:3000"
+    
     # App Settings
     app_name: str = "FastAPI Blog System"
     debug: bool = True
@@ -54,6 +59,26 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+    
+    @classmethod
+    def reload(cls):
+        """重新加载环境变量和配置"""
+        # 重新加载.env文件
+        load_dotenv(override=True)
+        
+        # 清除可能的缓存
+        if hasattr(cls, '_instance'):
+            delattr(cls, '_instance')
+        
+        # 返回新的配置实例
+        return cls()
 
 
-settings = Settings() 
+# 创建全局配置实例
+settings = Settings()
+
+def reload_settings():
+    """重新加载全局配置"""
+    global settings
+    settings = Settings.reload()
+    return settings 

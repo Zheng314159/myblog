@@ -42,16 +42,18 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # 允许无需认证的公开路径
         public_paths = [
             "/", "/health", "/docs", "/redoc", "/openapi.json", "/favicon.ico",
-            "/api/v1/auth/login", "/api/v1/auth/register",
+            "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/config",
+            "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password", "/api/v1/auth/send-verification-code",
             "/api/v1/articles", "/api/v1/articles/",  # 允许匿名访问文章列表
             "/api/v1/tags/popular",  # 允许匿名访问热门标签
             "/admin", "/admin/",  # 放行admin后台
             "/jianai", "/jianai/",  # 放行自定义后台路径
         ]
-        
-        # 检查是否是公开路径
+        # 新增：统一去除末尾斜杠进行判断
+        normalized_path = request.url.path.rstrip('/') or '/'
+        normalized_public_paths = [p.rstrip('/') or '/' for p in public_paths]
         is_public = (
-            request.url.path in public_paths or 
+            normalized_path in normalized_public_paths or
             request.url.path.startswith("/admin") or
             request.url.path.startswith("/jianai") or
             request.url.path.startswith("/static") or 
@@ -67,8 +69,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 request.url.path.startswith("/api/v1/tags") and request.method == "GET"
             )
         )
-        
-        logger.info(f"Auth check for path: {request.url.path}, is_public: {is_public}")
+        logger.info(f"Auth check for path: {request.url.path}, normalized: {normalized_path}, is_public: {is_public}")
+        logger.info(f"Normalized public paths: {normalized_public_paths}")
+        logger.info(f"Path in normalized_public_paths: {normalized_path in normalized_public_paths}")
         
         if is_public:
             logger.info(f"Public path, skipping auth: {request.url.path}")

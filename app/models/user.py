@@ -9,9 +9,9 @@ if TYPE_CHECKING:
 
 
 class UserRole(str, Enum):
-    ADMIN = "admin"
-    MODERATOR = "moderator"
-    USER = "user"
+    ADMIN = "ADMIN"
+    MODERATOR = "MODERATOR"
+    USER = "USER"
 
 
 class OAuthProvider(str, Enum):

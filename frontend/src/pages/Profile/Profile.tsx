@@ -154,10 +154,10 @@ const Profile: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Text strong style={{ minWidth: 80 }}>角色：</Text>
             <Text style={{ 
-              color: user.role === 'admin' ? '#ff4d4f' : '#1890ff',
+              color: user.role === 'ADMIN' ? '#ff4d4f' : '#1890ff',
               fontWeight: 'bold'
             }}>
-              {user.role === 'admin' ? '管理员' : '普通用户'}
+              {user.role === 'ADMIN' ? '管理员' : '普通用户'}
             </Text>
           </div>
           {user.full_name && (

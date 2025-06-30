@@ -4,6 +4,7 @@ from typing import Callable
 from fastapi import Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from app.core.config import settings
 from app.core.redis import redis_manager
 from app.core.security import verify_token
@@ -15,7 +16,7 @@ from sqlalchemy import select
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
+ADMIN_PATH = "/admin"
 
 class LoggingMiddleware(BaseHTTPMiddleware):
     """Logging middleware for request/response"""
@@ -39,6 +40,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
     """Authentication middleware"""
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        # 强制放行所有 /admin 相关请求
+        if request.url.path.startswith(ADMIN_PATH):
+            logger.info(f"Public path (admin), skipping auth: {request.url.path}")
+            return await call_next(request)
+        
         # 允许无需认证的公开路径
         public_paths = [
             "/", "/health", "/docs", "/redoc", "/openapi.json", "/favicon.ico",
@@ -48,6 +54,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             "/api/v1/tags/popular",  # 允许匿名访问热门标签
             "/admin", "/admin/",  # 放行admin后台
             "/jianai", "/jianai/",  # 放行自定义后台路径
+            ADMIN_PATH, ADMIN_PATH + "/",
         ]
         # 新增：统一去除末尾斜杠进行判断
         normalized_path = request.url.path.rstrip('/') or '/'
@@ -56,12 +63,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
             normalized_path in normalized_public_paths or
             request.url.path.startswith("/admin") or
             request.url.path.startswith("/jianai") or
+            request.url.path.startswith(ADMIN_PATH) or
             request.url.path.startswith("/static") or 
             request.url.path.startswith("/statics") or
             request.url.path.startswith("/docs") or 
             request.url.path.startswith("/redoc") or 
             request.url.path.startswith("/api/v1/search/") or
             request.url.path.startswith("/api/v1/oauth/") or
+            request.url.path.startswith("/api/v1/config/") or  # 允许配置相关端点
             (
                 request.url.path in ["/api/v1/articles", "/api/v1/articles/"] and request.method == "GET"
             ) or
@@ -119,6 +128,16 @@ class AuthMiddleware(BaseHTTPMiddleware):
 def setup_middleware(app):
     """Setup all middleware"""
     print("[DEBUG] Allowed origins:", settings.allowed_origins)
+    
+    # Session middleware - 必须最先添加，OAuth功能需要
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.secret_key,  # 使用配置中的secret_key
+        max_age=60 * 60 * 24 * 7,  # 7 days
+        same_site="lax",
+        https_only=False  # 开发环境设为False，生产环境应该设为True
+    )
+    
     # CORS middleware
     app.add_middleware(
         CORSMiddleware,
@@ -127,6 +146,7 @@ def setup_middleware(app):
         allow_methods=["*"],
         allow_headers=["*"]
     )
+    
     # Custom middleware
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(AuthMiddleware) 

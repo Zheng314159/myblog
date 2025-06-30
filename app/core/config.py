@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from pydantic_settings import BaseSettings
 from pydantic import Field
 import os
@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     
     # OAuth Base URL
     oauth_base_url: str = "http://localhost:8000"
+    
+    # Proxy Settings (for accessing blocked services)
+    http_proxy: Optional[str] = None
+    https_proxy: Optional[str] = None
+    no_proxy: Optional[str] = None
     
     class Config:
         env_file = ".env"

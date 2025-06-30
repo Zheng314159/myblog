@@ -4,12 +4,12 @@ load_dotenv()
 
 # 设置代理环境变量（如果.env中有配置）
 import os
-if os.getenv('HTTP_PROXY') is not None:
-    os.environ['HTTP_PROXY'] = str(os.getenv('HTTP_PROXY'))
-if os.getenv('HTTPS_PROXY') is not None:
-    os.environ['HTTPS_PROXY'] = str(os.getenv('HTTPS_PROXY'))
-if os.getenv('NO_PROXY') is not None:
-    os.environ['NO_PROXY'] = str(os.getenv('NO_PROXY'))
+if os.getenv('HTTP_PROXY'):
+    os.environ['HTTP_PROXY'] = os.getenv('HTTP_PROXY')
+if os.getenv('HTTPS_PROXY'):
+    os.environ['HTTPS_PROXY'] = os.getenv('HTTPS_PROXY')
+if os.getenv('NO_PROXY'):
+    os.environ['NO_PROXY'] = os.getenv('NO_PROXY')
 
 import asyncio
 from contextlib import asynccontextmanager
@@ -20,7 +20,6 @@ from pydantic import ValidationError
 from sqlmodel import SQLModel
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
-from starlette.middleware.sessions import SessionMiddleware
 
 from app.core.config import settings
 from app.core.database import engine, create_db_and_tables, async_session
@@ -48,7 +47,7 @@ from app.models.comment import Comment
 from app.core.security import verify_password
 from app.models.user import UserRole
 
-ADMIN_PATH = "/admin"  # 后台路径恢复为/admin，保证SQLAdmin静态资源和JS事件正常
+ADMIN_PATH = "/jianai"  # 可自定义后台路径
 
 
 @asynccontextmanager
@@ -77,7 +76,7 @@ async def lifespan(app: FastAPI):
     admin = Admin(
         app, 
         engine, 
-        authentication_backend=AdminAuth(secret_key=settings.secret_key), 
+        authentication_backend=AdminAuth(secret_key="your-random-secret-key"), 
         base_url=ADMIN_PATH,
         title="博客管理系统",
         logo_url="https://preview.tabler.io/static/logo-white.svg"
@@ -98,7 +97,6 @@ async def lifespan(app: FastAPI):
         }
         
         async def delete_model(self, request: Request, pks: list) -> bool:
-            print(f"delete_model called: {pks}")
             """自定义删除方法，防止删除管理员用户"""
             async with async_session() as session:
                 try:
@@ -106,7 +104,7 @@ async def lifespan(app: FastAPI):
                     for pk in pks:
                         result = await session.execute(select(User).where(User.id == pk))
                         user = result.scalar_one_or_none()
-                        if user and user.role == "ADMIN":
+                        if user and user.role == "admin":
                             print(f"不能删除管理员用户: {user.username}")
                             return False
                     
@@ -150,7 +148,6 @@ async def lifespan(app: FastAPI):
         form_excluded_columns = ["created_at", "updated_at", "published_at"]
         
         async def delete_model(self, request: Request, pks: list) -> bool:
-            print(f"delete_model called: {pks}")
             """自定义删除方法，允许管理员删除所有文章"""
             async with async_session() as session:
                 try:
@@ -195,7 +192,6 @@ async def lifespan(app: FastAPI):
         form_excluded_columns = ["created_at", "updated_at"]
         
         async def delete_model(self, request: Request, pks: list) -> bool:
-            print(f"delete_model called: {pks}")
             """自定义删除方法，删除评论时也删除子评论"""
             async with async_session() as session:
                 try:

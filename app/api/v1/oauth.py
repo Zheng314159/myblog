@@ -4,19 +4,81 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
-from app.core.oauth import oauth, OAuthService
+from app.core.oauth import oauth, OAuthService, get_proxy_config
 from app.core.exceptions import AuthenticationError, ConflictError
 from app.models.user import User, OAuthProvider, OAuthAccount
 from app.schemas.auth import Token
 from app.api.deps import get_current_user
+from app.core.config import settings
+import httpx
 
 router = APIRouter(prefix="/oauth", tags=["oauth"])
+
+
+@router.get("/health/google")
+async def check_google_oauth_health():
+    """Check Google OAuth network connectivity"""
+    try:
+        proxy = get_proxy_config()
+        transport = httpx.AsyncHTTPTransport(proxy=proxy) if proxy else None
+        
+        async with httpx.AsyncClient(transport=transport, timeout=10.0) as client:
+            # Test Google's OpenID configuration endpoint
+            response = await client.get('https://accounts.google.com/.well-known/openid_configuration')
+            if response.status_code == 200:
+                return {
+                    "provider": "google",
+                    "status": "available",
+                    "message": "Google OAuth is accessible"
+                }
+            else:
+                return {
+                    "provider": "google",
+                    "status": "unavailable",
+                    "message": f"Google OAuth returned status {response.status_code}"
+                }
+    except Exception as e:
+        return {
+            "provider": "google",
+            "status": "unavailable",
+            "message": f"Google OAuth network error: {str(e)}"
+        }
+
+
+@router.get("/health/github")
+async def check_github_oauth_health():
+    """Check GitHub OAuth network connectivity"""
+    try:
+        proxy = get_proxy_config()
+        transport = httpx.AsyncHTTPTransport(proxy=proxy) if proxy else None
+        
+        async with httpx.AsyncClient(transport=transport, timeout=10.0) as client:
+            # Test GitHub's API endpoint
+            response = await client.get('https://api.github.com/zen')
+            if response.status_code == 200:
+                return {
+                    "provider": "github",
+                    "status": "available",
+                    "message": "GitHub OAuth is accessible"
+                }
+            else:
+                return {
+                    "provider": "github",
+                    "status": "unavailable",
+                    "message": f"GitHub OAuth returned status {response.status_code}"
+                }
+    except Exception as e:
+        return {
+            "provider": "github",
+            "status": "unavailable",
+            "message": f"GitHub OAuth network error: {str(e)}"
+        }
 
 
 @router.get("/github/login")
 async def github_login(request: Request):
     """Initiate GitHub OAuth login"""
-    if not oauth.github:
+    if not hasattr(oauth, 'github') or not oauth.github:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="GitHub OAuth not configured"
@@ -32,7 +94,7 @@ async def github_callback(
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """Handle GitHub OAuth callback"""
-    if not oauth.github:
+    if not hasattr(oauth, 'github') or not oauth.github:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="GitHub OAuth not configured"
@@ -57,7 +119,7 @@ async def github_callback(
         tokens = await OAuthService.create_oauth_tokens(user)
         
         # Redirect to frontend with tokens
-        frontend_url = "http://localhost:3000"  # You can make this configurable
+        frontend_url = settings.frontend_url or "http://localhost:3000"
         return RedirectResponse(
             url=f"{frontend_url}/oauth/callback?access_token={tokens['access_token']}&refresh_token={tokens['refresh_token']}&token_type={tokens['token_type']}"
         )
@@ -69,7 +131,7 @@ async def github_callback(
 @router.get("/google/login")
 async def google_login(request: Request):
     """Initiate Google OAuth login"""
-    if not oauth.google:
+    if not hasattr(oauth, 'google') or not oauth.google:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="Google OAuth not configured"
@@ -85,7 +147,7 @@ async def google_callback(
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """Handle Google OAuth callback"""
-    if not oauth.google:
+    if not hasattr(oauth, 'google') or not oauth.google:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="Google OAuth not configured"
@@ -110,7 +172,7 @@ async def google_callback(
         tokens = await OAuthService.create_oauth_tokens(user)
         
         # Redirect to frontend with tokens
-        frontend_url = "http://localhost:3000"  # You can make this configurable
+        frontend_url = settings.frontend_url or "http://localhost:3000"
         return RedirectResponse(
             url=f"{frontend_url}/oauth/callback?access_token={tokens['access_token']}&refresh_token={tokens['refresh_token']}&token_type={tokens['token_type']}"
         )
@@ -219,21 +281,29 @@ async def get_oauth_accounts(
 
 @router.get("/providers")
 async def get_available_providers():
-    """Get available OAuth providers"""
+    """Get available OAuth providers with network status"""
     providers = []
     
-    if oauth.github:
+    # Check GitHub
+    if hasattr(oauth, 'github') and oauth.github:
+        github_health = await check_github_oauth_health()
         providers.append({
             "name": "github",
             "display_name": "GitHub",
-            "login_url": "/api/v1/oauth/github/login"
+            "login_url": "/api/v1/oauth/github/login",
+            "status": github_health["status"],
+            "message": github_health["message"]
         })
     
-    if oauth.google:
+    # Check Google
+    if hasattr(oauth, 'google') and oauth.google:
+        google_health = await check_google_oauth_health()
         providers.append({
             "name": "google",
             "display_name": "Google",
-            "login_url": "/api/v1/oauth/google/login"
+            "login_url": "/api/v1/oauth/google/login",
+            "status": google_health["status"],
+            "message": google_health["message"]
         })
     
     return {"providers": providers} 

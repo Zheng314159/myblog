@@ -8,6 +8,7 @@ const Login = lazy(() => import("../pages/Auth/Login"));
 const Register = lazy(() => import("../pages/Auth/Register"));
 const ForgotPassword = lazy(() => import("../pages/Auth/ForgotPassword"));
 const ResetPassword = lazy(() => import("../pages/Auth/ResetPassword"));
+const OAuthCallback = lazy(() => import("../pages/Auth/OAuthCallback"));
 const ArticleDetail = lazy(() => import("../pages/Article/ArticleDetail"));
 const ArticleEdit = lazy(() => import("../pages/Article/ArticleEdit"));
 const Profile = lazy(() => import("../pages/Profile/Profile"));
@@ -16,6 +17,8 @@ const Search = lazy(() => import("../pages/Search/Search"));
 const Debug = lazy(() => import("../pages/Debug/Debug"));
 const LaTeXTest = lazy(() => import("../pages/Test/LaTeXTest"));
 const CommentTest = lazy(() => import("../pages/Test/CommentTest"));
+const OAuthTest = lazy(() => import("../pages/Test/OAuthTest"));
+const ConfigTest = lazy(() => import("../pages/Test/ConfigTest"));
 const NotFound = lazy(() => import("../pages/NotFound"));
 
 const AppRouter: React.FC = () => (
@@ -27,14 +30,17 @@ const AppRouter: React.FC = () => (
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/oauth/callback" element={<OAuthCallback />} />
         <Route path="/debug" element={<Debug />} />
         <Route path="/latex-test" element={<LaTeXTest />} />
         <Route path="/comment-test" element={<CommentTest />} />
+        <Route path="/oauth-test" element={<OAuthTest />} />
+        <Route path="/config-test" element={<ConfigTest />} />
         <Route path="/search" element={<Search />} />
         <Route path="/article/:id" element={<ArticleDetail />} />
         <Route path="/edit/:id" element={<RequireAuth><ArticleEdit /></RequireAuth>} />
         <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
-        <Route path="/admin" element={<RequireAuth role="admin"><Admin /></RequireAuth>} />
+        <Route path="/admin" element={<RequireAuth role="ADMIN"><Admin /></RequireAuth>} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

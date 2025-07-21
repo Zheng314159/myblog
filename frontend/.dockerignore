@@ -1,0 +1,23 @@
+# 忽略 node_modules：不需要打包，构建时会重新 install
+node_modules
+.dockerignore
+
+# 忽略构建产物 dist，防止旧内容被误带入构建镜像
+dist
+
+# Vite 的缓存目录，不需要
+.vite
+
+# IDE 文件
+.vscode
+.idea
+
+# 日志文件
+*.log
+
+# macOS 文件系统缓存
+.DS_Store
+
+# 环境配置文件（防止打包进镜像，泄露敏感信息）
+.env
+.env.*

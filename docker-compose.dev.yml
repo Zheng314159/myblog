@@ -1,0 +1,65 @@
+# 5. docker-compose.dev.yml
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: tiancai
+      POSTGRES_PASSWORD: zheng88
+      POSTGRES_DB: blogdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend.dev
+      args:
+        HTTP_PROXY: "http://192.168.0.9:1081"
+        HTTPS_PROXY: "http://192.168.0.9:1081"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./alembic:/app/alembic
+      - ./scripts:/app/scripts
+      # - ./blog.db:/app/blog.db
+    env_file:
+      - .env.development
+    environment:
+      - PYTHONPATH=/app
+      - HTTP_PROXY=http://192.168.0.9:1081
+      - HTTPS_PROXY=http://192.168.0.9:1081
+    depends_on:
+      - redis
+      - postgres
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - pnpm_store:/root/.pnpm-store
+    env_file:
+      - .env.development
+    depends_on:
+      - backend
+
+volumes:
+  redis_data:
+  pg_data:
+  pnpm_store:

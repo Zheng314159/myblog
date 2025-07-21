@@ -1,0 +1,5 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="48" height="48" rx="8" fill="#F44336"/>
+  <rect x="10" y="10" width="28" height="28" rx="4" fill="white"/>
+  <text x="24" y="32" text-anchor="middle" font-family="Arial" font-size="16" fill="#F44336" font-weight="bold">PDF</text>
+</svg> 

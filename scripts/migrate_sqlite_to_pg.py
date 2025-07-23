@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 from typing import Type
 from sqlmodel import SQLModel, select
@@ -12,7 +13,16 @@ from app.models import __all_models__  # ✅ 自动引入所有模型
 # 加载环境变量
 sqlite_url = "sqlite+aiosqlite:///./blog.db"
 
-load_dotenv(".env.development")  # postgres 环境
+# ==== 环境变量加载 ====
+ENV_FILE = os.getenv("ENV_FILE", ".env.production")
+env_path = Path(ENV_FILE)
+if env_path.exists():
+    print(f"📦 正在加载环境变量文件: {ENV_FILE}")
+    load_dotenv(dotenv_path=env_path)
+else:
+    print(f"⚠️ 未找到 {ENV_FILE}，将使用系统环境变量")
+
+# load_dotenv(".env.development")  # postgres 环境
 postgres_url = os.getenv("DATABASE_URL")
 if not postgres_url:
     raise ValueError("❌ DATABASE_URL 未设置")

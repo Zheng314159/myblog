@@ -8,3 +8,6 @@ __pycache__
 .env.development
 .env.production
 uploads
+ssl
+keys
+certs

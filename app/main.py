@@ -52,7 +52,7 @@ from app.models.user import UserRole
 from app.models.media import MediaFile
 from app.models.system_notification import SystemNotification
 from app.models.donation import DonationConfig, DonationRecord, DonationGoal
-
+import sqladmin
 ADMIN_PATH = "/admin"  # 后台路径恢复为/admin，保证SQLAdmin静态资源和JS事件正常
 
 
@@ -364,6 +364,12 @@ app = FastAPI(
 import os
 app.mount("/uploads", StaticFiles(directory=os.path.abspath("uploads")), name="uploads")
 
+# 找到 sqladmin 的 static 路径
+# sqladmin_static_dir = os.path.join(os.path.dirname(sqladmin.__file__), "static")
+
+# 手动挂载 static，路径必须是 /admin/statics 才能匹配模板引用的资源路径
+app.mount("/admin/statics", StaticFiles(directory="app/static/sqladmin"), name="sqladmin-static")
+
 # Setup middleware
 setup_middleware(app)  # 恢复中间件
 
@@ -424,11 +430,12 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
 
+
 # Include routers
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(article_router, prefix="/api/v1")
 app.include_router(tag_router, prefix="/api/v1")
-app.include_router(websocket_router, prefix="/api/v1")
+app.include_router(websocket_router, prefix="/wss")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(scheduler_router, prefix="/api/v1")
 app.include_router(oauth_router, prefix="/api/v1")
@@ -486,6 +493,20 @@ class AdminAuth(AuthenticationBackend):
     async def logout(self, request: Request) -> None:
         request.session.pop("user_id", None)
 
+class CSPMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response: Response = await call_next(request)
+
+        if request.url.path.startswith(ADMIN_PATH):
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self' data: 'unsafe-inline' 'unsafe-eval'; "
+                "style-src 'self' 'unsafe-inline' https: http:; "
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http:; "
+                "img-src 'self' data: blob:; "
+                "font-src 'self' data:;"
+            )
+
+        return response
 
 class NoCacheAdminMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -554,6 +575,7 @@ class NoCacheAdminMiddleware(BaseHTTPMiddleware):
                         print(f"Error processing response: {e}")
         return response
 
+app.add_middleware(CSPMiddleware)
 app.add_middleware(NoCacheAdminMiddleware)
 
 

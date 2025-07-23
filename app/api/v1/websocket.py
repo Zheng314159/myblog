@@ -19,13 +19,21 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.accept()
         
         # 等待认证消息
-        auth_message = await websocket.receive_text()
-        auth_data = json.loads(auth_message)
-        
-        # 验证用户
-        user = await get_current_user_ws(auth_data.get("token"))
-        if not user:
-            await websocket.close(code=4001, reason="Authentication failed")
+        try:
+            auth_message = await websocket.receive_text()
+            logger.info(f"收到认证消息: {auth_message}")
+            auth_data = json.loads(auth_message)
+            token = auth_data.get("token")
+            if not token:
+                raise ValueError("No token provided")
+
+            user = await get_current_user_ws(token)
+            if not user:
+                await websocket.close(code=4001, reason="Authentication failed")
+                return
+        except Exception as e:
+            logger.error(f"认证失败或异常: {e}")
+            await websocket.close(code=4000, reason="Internal error")
             return
         
         # 建立连接

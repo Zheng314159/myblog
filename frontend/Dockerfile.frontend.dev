@@ -13,4 +13,7 @@ COPY . .
 
 EXPOSE 3000
 
+# 显式指定加载 .env.development
+# ENV NODE_ENV=development
+
 CMD ["sh", "-c", "pnpm dev"]

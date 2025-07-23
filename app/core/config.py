@@ -1,12 +1,21 @@
+from pathlib import Path
 from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 import os
 from dotenv import load_dotenv
 
+# 获取 env_file 优先级（不论是否在容器中，都定义它）
+ENV_FILE = os.getenv("ENV_FILE", ".env")
+
+# 如果不是在容器中运行，自动加载 dotenv 文件（仅本地）
+if not os.getenv("IN_DOCKER", "").lower() == "true":
+    from dotenv import load_dotenv
+    load_dotenv(dotenv_path=Path(ENV_FILE), override=True)
 
 class Settings(BaseSettings):
     # Database
+    https_only: bool = Field(default=False, alias="HTTPS_ONLY")  # 是否强制使用 HTTPS
     database_url: str = "sqlite+aiosqlite:///./blog.db"
     environment: str = Field(default="development", alias="ENVIRONMENT") # 环境变量，默认为 development，可通过 .env 文件覆盖
     python_io_encoding: str = Field(default="utf-8", alias="PYTHONIOENCODING")  # 确保 Python IO 编码为 UTF-8
@@ -138,8 +147,8 @@ class Settings(BaseSettings):
         return ""
     
     class Config:
-        allow_population_by_field_name = True  # 允许用字段名或别名赋值
-        env_file = os.getenv("ENV_FILE", ".env")
+        validate_by_name = True  # 允许用字段名或别名赋值
+        env_file = ENV_FILE
         env_file_encoding = "utf-8"
         case_sensitive = False
 

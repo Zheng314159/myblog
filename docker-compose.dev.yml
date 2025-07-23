@@ -51,11 +51,11 @@ services:
       dockerfile: Dockerfile.frontend.dev
     ports:
       - "3000:3000"
+    environment:
+      - NODE_ENV=development
     volumes:
       - ./frontend:/app
       - pnpm_store:/root/.pnpm-store
-    env_file:
-      - .env.development
     depends_on:
       - backend
 

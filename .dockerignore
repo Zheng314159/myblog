@@ -62,7 +62,7 @@ uploads/
 alembic/versions/    # 如果你在构建时不需要迁移历史（可选排除）
 
 # SSL / 密钥 / 私钥
-ssl/
+# ssl/
 certs/
 keys/
 *.pem

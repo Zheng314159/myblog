@@ -1,3 +1,4 @@
+# projects/myblog/scripts/init_db.py
 import os
 import sys
 import time
@@ -80,8 +81,9 @@ async def create_pg_tables():
         print("📦 正在使用 SQLModel 创建表结构（如未使用 Alembic，可启用）...")
         engine = create_async_engine(database_url, echo=False)
         async with engine.begin() as conn:
+            await conn.run_sync(SQLModel.metadata.drop_all)
             await conn.run_sync(SQLModel.metadata.create_all)
-        print("✅ SQLModel 表结构创建完成")
+        print("✅ SQLModel 表结构删除并重建完成")
     except Exception as e:
         print("❌ SQLModel 表结构创建失败：", e)
         sys.exit(1)
@@ -166,9 +168,9 @@ if __name__ == "__main__":
 
     # 可选：首次用 create_all() 建表，然后 stamp 为 base 状态
     if not is_sqlite:
-        # asyncio.run(create_pg_tables())  # 第一次创建
-        # run_alembic_stamp_base()         # stamp base
-        # run_alembic_stamp_head()          # stamp head
+        asyncio.run(create_pg_tables())  # 第一次创建
+        run_alembic_stamp_base()         # stamp base
+        run_alembic_stamp_head()          # stamp head
         # run_alembic_autogenerate()       # 自动生成脚本
         run_alembic_upgrade()            # 正式迁移
         # asyncio.run(show_tables())

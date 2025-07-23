@@ -1,13 +1,14 @@
-version: '3.8'
-
+# projects/myblog/docker-compose.prod.yml
 services:
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - redis_data_prod:/data
     command: redis-server --appendonly yes
+    networks:
+      - mynet
 
   postgres:
     image: postgres:15
@@ -18,52 +19,56 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - pg_data_prod:/var/lib/postgresql/data
+    networks:
+      - mynet
 
   backend:
     build:
       context: .
       dockerfile: Dockerfile.backend.prod
-    ports:
-      - "8000:8000"
+      args:
+        HTTP_PROXY: "http://192.168.0.9:1081"
+        HTTPS_PROXY: "http://192.168.0.9:1081"
     volumes:
       - ./uploads:/app/uploads
-      - ./alembic:/app/alembic
-      - ./scripts:/app/scripts
+      - ./alembic:/app/alembic:ro
+      - ./scripts:/app/scripts:ro
+      # - ./blog.db:/app/blog.db
     env_file:
       - .env.production
     environment:
-      - ENVIRONMENT=production
+      - PYTHONPATH=/app
+      - HTTP_PROXY=http://192.168.0.9:1081
+      - HTTPS_PROXY=http://192.168.0.9:1081
     depends_on:
       - redis
       - postgres
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.frontend.prod
-    volumes:
-      - frontend_dist:/usr/share/nginx/html
-    environment:
-      - VITE_API_BASE_URL=http://backend:8000/api/v1
-    depends_on:
-      - backend
+    networks:
+      - mynet
 
   nginx:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: ./frontend/Dockerfile.frontend.prod
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./ssl:/etc/nginx/ssl:ro
-      - frontend_dist:/usr/share/nginx/html
+      # - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl/cert.pem:/etc/nginx/ssl/cert.pem:ro
+      - ./ssl/key.pem:/etc/nginx/ssl/key.pem:ro
       - ./uploads:/usr/share/nginx/uploads
     depends_on:
-      - frontend
       - backend
+    networks:
+      - mynet
+
 
 volumes:
-  redis_data:
-  pg_data:
-  frontend_dist:
+  redis_data_prod:
+  pg_data_prod:
+networks:
+  mynet:
+    driver: bridge

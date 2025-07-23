@@ -175,7 +175,7 @@ def setup_middleware(app):
         secret_key=settings.secret_key,  # 使用配置中的secret_key
         max_age=60 * 60 * 24 * 7,  # 7 days
         same_site="lax",
-        https_only=False  # 开发环境设为False，生产环境应该设为True
+        https_only=settings.https_only  # 开发环境设为False，生产环境应该设为True
     )
     
     # CORS middleware

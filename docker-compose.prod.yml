@@ -12,10 +12,8 @@ services:
 
   postgres:
     image: postgres:15
-    environment:
-      POSTGRES_USER: tiancai
-      POSTGRES_PASSWORD: zheng88
-      POSTGRES_DB: blogdb
+    env_file:
+      - .env.compose.prod
     ports:
       - "5432:5432"
     volumes:

@@ -712,11 +712,22 @@ async def upload_pdf(
 
 
 @router.get("/pdfs/{filename}")
-async def get_pdf(filename: str):
+async def get_pdf(filename: str, preview: bool = Query(True)):
     file_path = os.path.join(PDFS_DIR, filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="PDF not found")
-    return FileResponse(file_path, media_type="application/pdf", filename=filename, content_disposition_type="inline")
+
+    disposition = "inline" if preview else "attachment"
+    headers = {
+        "Content-Disposition": f"{disposition}; filename={filename}"
+    }
+    return FileResponse(
+        file_path,
+        media_type="application/pdf",
+        filename=filename,
+        # content_disposition_type=disposition
+        headers=headers
+    )
 
 
 @router.get("/media/list", response_model=List[dict])

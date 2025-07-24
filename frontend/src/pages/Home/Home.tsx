@@ -409,8 +409,10 @@ const Home: React.FC = () => {
                   <img src="/pdf_icon.svg" alt="pdf" style={{height:48}} />
                 </div>}
                 actions={[
-                  <a href={pdf.url} download target="_blank" rel="noopener noreferrer">下载</a>,
-                  <a href={pdf.url} target="_blank" rel="noopener noreferrer">预览</a>
+                  <a href={`${pdf.url}?preview=false`} target="_blank" rel="noopener noreferrer" download>下载</a>,
+
+                  <a href={`${pdf.url}?preview=true`} target="_blank" rel="noopener noreferrer">预览</a>
+
                 ]}
               >
                 <div style={{ fontSize: 12, wordBreak: 'break-all', textAlign: 'center' }} title={pdf.filename}>

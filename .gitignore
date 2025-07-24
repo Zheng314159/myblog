@@ -11,3 +11,4 @@ uploads
 ssl
 keys
 certs
+!frontend/.env*

@@ -54,3 +54,48 @@ poetry env info --path
 
 poetry init --no-interaction && poetry add $(cat requirements.txt)
 
+
+
+# 配置虚拟环境路径
+poetry config virtualenvs.in-project false
+# 重新创建虚拟环境
+poetry env use python3.12
+# 确认依赖
+poetry show
+# 查看 Poetry 虚拟环境路径
+poetry env info --path
+# 列出 site-packages 下的已安装包
+poetry run python -m site
+# 查找具体包的路径
+poetry run python -c "import pycryptodomex; print(pycryptodomex.__file__)"
+# 列出所有包及其来源路径
+poetry run pip list --format=columns
+poetry run pip show pycryptodomex
+# 进入虚拟环境手动查
+poetry shell
+cd $(python -c "import site; print(site.getsitepackages()[0])")
+ls -l
+
+
+
+# 添加开发依赖
+poetry add --group dev pytest pytest-asyncio
+
+# 安装shell补全
+poetry completions bash >> ~/.bashrc
+# 或 zsh
+poetry completions zsh >> ~/.zshrc
+
+
+# 1. 生成 lock 文件
+poetry lock
+
+# 2. 安装依赖
+poetry install
+
+# 3. 若你要导出成 requirements.txt 给 Docker 用：
+poetry export -f requirements.txt --without-hashes -o requirements.txt
+# 运行以下命令来检测 pyproject.toml 是否语法正确：
+poetry check
+#  试重新锁定依赖验证配置是否有效：
+poetry lock --no-update

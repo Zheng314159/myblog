@@ -10,6 +10,7 @@ mkdir -p "$DEST"
 rsync -avh --progress \
   --exclude '.venv/' \
   --exclude 'frontend/node_modules/' \
+  --exclude 'frontend/dist/' \
   --exclude 'alembic/versions/' \
   --exclude 'myblogenv/' \
   --exclude '__pycache__/' \

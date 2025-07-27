@@ -1,4 +1,5 @@
 # 在所有导入前加载dotenv
+import traceback
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -420,6 +421,7 @@ async def pydantic_validation_exception_handler(request: Request, exc: Validatio
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     """Handle general exceptions"""
+    print("🔥 全局异常:", traceback.format_exc())
     return JSONResponse(
         status_code=500,
         content={
@@ -493,20 +495,20 @@ class AdminAuth(AuthenticationBackend):
     async def logout(self, request: Request) -> None:
         request.session.pop("user_id", None)
 
-class CSPMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        response: Response = await call_next(request)
+# class CSPMiddleware(BaseHTTPMiddleware):
+#     async def dispatch(self, request: Request, call_next):
+#         response: Response = await call_next(request)
 
-        if request.url.path.startswith(ADMIN_PATH):
-            response.headers["Content-Security-Policy"] = (
-                "default-src 'self' data: 'unsafe-inline' 'unsafe-eval'; "
-                "style-src 'self' 'unsafe-inline' https: http:; "
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http:; "
-                "img-src 'self' data: blob:; "
-                "font-src 'self' data:;"
-            )
+#         if request.url.path.startswith(ADMIN_PATH):
+#             response.headers["Content-Security-Policy"] = (
+#                 "default-src 'self' data: 'unsafe-inline' 'unsafe-eval'; "
+#                 "style-src 'self' 'unsafe-inline' https: http:; "
+#                 "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http:; "
+#                 "img-src 'self' data: blob:; "
+#                 "font-src 'self' data:;"
+#             )
 
-        return response
+#         return response
 
 class NoCacheAdminMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -575,7 +577,7 @@ class NoCacheAdminMiddleware(BaseHTTPMiddleware):
                         print(f"Error processing response: {e}")
         return response
 
-app.add_middleware(CSPMiddleware)
+# app.add_middleware(CSPMiddleware)
 app.add_middleware(NoCacheAdminMiddleware)
 
 

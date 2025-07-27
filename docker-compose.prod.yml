@@ -32,7 +32,7 @@ services:
       - ./uploads:/app/uploads
       - ./alembic:/app/alembic:ro
       - ./scripts:/app/scripts:ro
-      # - ./blog.db:/app/blog.db
+      - ./blog.db:/app/blog.db
     env_file:
       - .env.production
     environment:

@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional, Annotated
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks, Query
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
 from sqlalchemy.orm import selectinload
@@ -713,21 +713,29 @@ async def upload_pdf(
 
 @router.get("/pdfs/{filename}")
 async def get_pdf(filename: str, preview: bool = Query(True)):
-    file_path = os.path.join(PDFS_DIR, filename)
+    file_path = get_file_path(filename, PDFS_DIR)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="PDF not found")
-
-    disposition = "inline" if preview else "attachment"
-    headers = {
-        "Content-Disposition": f"{disposition}; filename={filename}"
-    }
-    return FileResponse(
-        file_path,
-        media_type="application/pdf",
-        filename=filename,
-        # content_disposition_type=disposition
-        headers=headers
-    )
+    try:
+        file = open(file_path, "rb")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to open PDF: {str(e)}")
+    def file_iterator():
+        try:
+            while True:
+                chunk = file.read(8192)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            file.close()
+    response = StreamingResponse(file_iterator(), media_type="application/pdf")
+    if not preview:
+        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    else:
+        if "Content-Disposition" in response.headers:
+            del response.headers["Content-Disposition"]
+    return response
 
 
 @router.get("/media/list", response_model=List[dict])

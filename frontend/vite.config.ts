@@ -9,7 +9,8 @@ const __dirname = path.dirname(__filename);
 export default defineConfig(({ mode }) => {
   // 加载对应环境（development / production）的 env 文件
   const env = loadEnv(mode, process.cwd());
-
+  console.log(`✅ 当前运行模式: ${mode}`);
+  console.log("✅ 使用的环境变量:", env);
   return {
     plugins: [react()],
     resolve: {

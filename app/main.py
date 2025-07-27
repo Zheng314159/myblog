@@ -23,6 +23,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.requests import Request as StarletteRequest
 
 from app.core.config import settings
 from app.core.database import engine, create_db_and_tables, async_session
@@ -91,7 +92,8 @@ async def lifespan(app: FastAPI):
         authentication_backend=AdminAuth(secret_key=settings.secret_key), 
         base_url=ADMIN_PATH,
         title="博客管理系统",
-        logo_url="https://preview.tabler.io/static/logo-white.svg"
+        logo_url="https://preview.tabler.io/static/logo-white.svg",
+        # scheme="https"  # 强制所有链接为 https
     )
 
     class UserAdmin(ModelView, model=User):
@@ -478,37 +480,49 @@ class AdminAuth(AuthenticationBackend):
         form = await request.form()
         username = str(form.get("username") or "")
         password = str(form.get("password") or "")
-        
+        # print(f"Login attempt: username={username}, password={password}")
         async with async_session() as session:
             result = await session.execute(select(User).where(User.username == username))
             user = result.scalar_one_or_none()
-            
+            # print(f"User found: {user}")
             if (
                 user and user.role == UserRole.ADMIN and user.is_active
                 and user.hashed_password
                 and verify_password(password, user.hashed_password)
             ):
+                # print(f"User {user.username} authenticated successfully")
                 request.session["user_id"] = user.id
                 return True
+            else:
+                # print(f"Authentication failed for user {username}")
+                request.session.pop("user_id", None)
         return False
 
     async def logout(self, request: Request) -> None:
         request.session.pop("user_id", None)
 
-# class CSPMiddleware(BaseHTTPMiddleware):
-#     async def dispatch(self, request: Request, call_next):
-#         response: Response = await call_next(request)
+class CSPMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response: Response = await call_next(request)
 
-#         if request.url.path.startswith(ADMIN_PATH):
-#             response.headers["Content-Security-Policy"] = (
-#                 "default-src 'self' data: 'unsafe-inline' 'unsafe-eval'; "
-#                 "style-src 'self' 'unsafe-inline' https: http:; "
-#                 "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http:; "
-#                 "img-src 'self' data: blob:; "
-#                 "font-src 'self' data:;"
-#             )
+        if request.url.path.startswith(ADMIN_PATH):
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "style-src 'self'; "
+                "script-src 'self'; "
+                "img-src 'self' blob:; "
+                "font-src 'self'; "
+                "connect-src 'self'; "
+                "form-action 'self' http://localhost http://127.0.0.1; "
+                "frame-ancestors 'none'; "
+                "object-src 'none'; "
+                "base-uri 'self'; "
+                "media-src 'none'; "
+                "frame-src 'none'; "
 
-#         return response
+            )
+
+        return response
 
 class NoCacheAdminMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -577,7 +591,36 @@ class NoCacheAdminMiddleware(BaseHTTPMiddleware):
                         print(f"Error processing response: {e}")
         return response
 
-# app.add_middleware(CSPMiddleware)
+old_url = StarletteRequest.url
+
+@property
+def url_with_https(self):
+    url = old_url.fget(self)
+    # 只对 /admin 路由生效
+    if url.scheme == "http" and self.headers.get("x-forwarded-proto") == "https" and url.path.startswith(ADMIN_PATH):
+        return url.replace(scheme="https")
+    return url
+
+StarletteRequest.url = url_with_https
+
+old_base_url = StarletteRequest.base_url
+
+@property
+def base_url_with_https(self):
+    url = old_base_url.fget(self)
+    if url.scheme == "http" and self.headers.get("x-forwarded-proto") == "https" and url.path.startswith(ADMIN_PATH):
+        return url.replace(scheme="https")
+    return url
+
+StarletteRequest.base_url = base_url_with_https
+# 打印请求协议的调试中间件
+class PrintSchemeMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        print(f"[DEBUG] {request.url.path} scheme: {request.url.scheme}, x-forwarded-proto: {request.headers.get('x-forwarded-proto')}")
+        return await call_next(request)
+
+# app.add_middleware(PrintSchemeMiddleware)
+app.add_middleware(CSPMiddleware)
 app.add_middleware(NoCacheAdminMiddleware)
 
 
@@ -585,8 +628,10 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "main:app",
-        host="127.0.0.1",
+        host="0.0.0.0",
         port=8000,
         reload=settings.debug,
-        log_level="info"
-    ) 
+        log_level="info",
+        proxy_headers=True,
+        forwarded_allow_ips="*"
+    )

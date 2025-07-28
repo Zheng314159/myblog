@@ -1,35 +1,41 @@
 import React, { useEffect } from "react";
 import { App as AntdApp, ConfigProvider, theme } from "antd";
 import zhCN from "antd/locale/zh_CN";
-import { Helmet } from "react-helmet";
-import AppRouter from "./router";
+import { Helmet } from "react-helmet-async";
+
+import AppRouter from "../routes/index";
 import Notification from "../components/Notification/Notification";
 import { useDispatch } from "react-redux";
 import { loginSuccess, logout, setLoading } from "../features/user/userSlice";
 import { getMe } from "../api/auth";
 import { TokenManager } from "../utils/tokenManager";
+import { useLocation } from "react-router-dom";
+import RouteLogger from "../test/RouteLogger";
 
 const App: React.FC = () => {
   const dispatch = useDispatch();
+  // const location = useLocation();
 
   useEffect(() => {
     const access_token = TokenManager.getAccessToken();
     const refresh_token = TokenManager.getRefreshToken();
-    
+    // console.log("当前路径：", location.pathname);
     if (access_token) {
       getMe()
-        .then(res => {
+        .then((res) => {
           const userInfo = res.data;
-          dispatch(loginSuccess({
-            accessToken: access_token,
-            refreshToken: refresh_token,
-            userInfo: {
-              id: userInfo.id,
-              username: userInfo.username,
-              email: userInfo.email,
-              role: userInfo.role,
-            },
-          }));
+          dispatch(
+            loginSuccess({
+              accessToken: access_token,
+              refreshToken: refresh_token!,
+              userInfo: {
+                id: userInfo.id,
+                username: userInfo.username,
+                email: userInfo.email,
+                role: userInfo.role,
+              },
+            })
+          );
           // 启动token检查
           TokenManager.startTokenCheck();
         })
@@ -50,6 +56,7 @@ const App: React.FC = () => {
   }, [dispatch]);
 
   return (
+    <>
     <ConfigProvider locale={zhCN} theme={{ algorithm: theme.defaultAlgorithm }}>
       <AntdApp>
         <Helmet>
@@ -59,6 +66,8 @@ const App: React.FC = () => {
         <Notification />
       </AntdApp>
     </ConfigProvider>
+     {/* <RouteLogger /> */}
+    </>
   );
 };
 

@@ -11,23 +11,38 @@ const getWebSocketUrl = () => {
 };
 
 export const connectWebSocket = (token?: string) => {
+  if (
+    ws &&
+    ws.readyState !== WebSocket.CLOSED &&
+    ws.readyState !== WebSocket.CLOSING
+  ) {
+    console.warn("WebSocket 已存在或正在关闭，跳过创建");
+    return ws;
+  }
+
   const url = getWebSocketUrl();
-  ws = new WebSocket(url);
+  const socket = new WebSocket(url);
+  ws = socket;
 
-  ws.onopen = () => {
-    console.log("WS已连接:", url);
+  socket.addEventListener("open", () => {
+    console.log("WebSocket连接已开启");
     if (token) {
-      ws?.send(JSON.stringify({ token }));
+      socket.send(JSON.stringify({ token }));
     }
-    ws?.send(JSON.stringify({ type: "subscribe", data: { channel: "home" } }));
-  };
+    socket.send(JSON.stringify({ type: "subscribe", data: { channel: "home" } }));
+  });
 
-  ws.onclose = (e) => {
-    console.log("WS关闭:", e);
-  };
-  ws.onerror = (e) => {
-    console.log("WS错误:", e);
-  };
+  ws.addEventListener("message", (event) => {
+    console.log("收到消息:", event.data);
+  });
+
+  ws.addEventListener("error", (err) => {
+    console.error("WebSocket 错误:", err);
+  });
+
+  ws.addEventListener("close", () => {
+    console.warn("WebSocket 已关闭");
+  });
 
   return ws;
 };

@@ -8,6 +8,7 @@ import "antd/dist/reset.css";
 import "./styles/global.css";
 import "katex/dist/katex.min.css";
 import { HelmetProvider } from "react-helmet-async";
+import { GlobalUIProvider } from "./components/Global/GlobalUIProvider";
 
 // import { useLocation } from "react-router-dom";
 // const location = useLocation();
@@ -26,15 +27,17 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <HelmetProvider>
-      <Provider store={store}>
-        <RouterProvider
-          router={router}
-          future={{
-            v7_startTransition: true,
-          }}
-        />
-      </Provider>
-    </HelmetProvider>
+    <GlobalUIProvider>
+      <HelmetProvider>
+        <Provider store={store}>
+          <RouterProvider
+            router={router}
+            future={{
+              v7_startTransition: true,
+            }}
+          />
+        </Provider>
+      </HelmetProvider>
+    </GlobalUIProvider>
   </React.StrictMode>
 ); 

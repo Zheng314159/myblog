@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, Typography, Button, Result, List, Avatar, Spin, message } from 'antd';
-import { getPublicDonationRecords } from '../../api/donation';
+import { getPublicDonationRecords } from '../../api/donation.ts';
 
 const { Title, Paragraph, Text } = Typography;
 

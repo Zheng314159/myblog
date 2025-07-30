@@ -1,5 +1,5 @@
 import axios from "axios";
-import { TokenManager } from "../utils/tokenManager";
+import { TokenManager } from "../utils/tokenManager.ts";
 
 // ✅ 默认使用 "/api/v1"，可通过环境变量覆盖（用于未来脱离代理部署）
 const baseURL = "/api/v1";

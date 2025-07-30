@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Card, Typography, List, Button, message as antdMessage, Modal as AntdModal, Divider, Modal, Form, Input, Alert, Tabs, Image, App } from "antd";
-import { getMe, changePassword, sendChangePasswordCode } from "../../api/auth";
-import { getArticles, deleteArticle } from "../../api/article";
+import { getMe, changePassword, sendChangePasswordCode } from "../../api/auth.ts";
+import { getArticles, deleteArticle } from "../../api/article.ts";
 import { useNavigate } from "react-router-dom";
-import { getUserMediaList, deleteMedia } from "../../api/upload";
+import { getUserMediaList, deleteMedia } from "../../api/upload.ts";
 
 const { Title, Text } = Typography;
 

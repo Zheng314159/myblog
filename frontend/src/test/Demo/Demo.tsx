@@ -1,6 +1,6 @@
 // src/pages/Demo.tsx
 import React from "react";
-import { useGlobalUI } from "@/hooks/useGlobalUI";
+import { useGlobalUI } from "@/hooks/useGlobalUI.ts";
 
 const Demo = () => {
   const {

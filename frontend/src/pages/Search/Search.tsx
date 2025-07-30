@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { List, Tag, Input, Typography, Spin, Empty } from "antd";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { searchArticles } from "../../api/search";
-import { getPopularTags } from "../../api/tag";
+import { searchArticles } from "../../api/search.ts";
+import { getPopularTags } from "../../api/tag.ts";
 
 const { Title } = Typography;
 

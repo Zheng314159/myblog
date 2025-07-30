@@ -1,4 +1,4 @@
-import request from './request';
+import request from './request.ts';
 
 export const getStatistics = async () => {
   const response = await request.get("/config/statistics");

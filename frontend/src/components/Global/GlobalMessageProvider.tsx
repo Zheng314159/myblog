@@ -1,8 +1,8 @@
 // src/components/GlobalMessageProvider.tsx
 import React, { createContext, useContext } from "react";
 import { App, AppProps } from "antd";
-import { setMessageApi, setNotificationApi } from "@/utils/message";
-import { GlobalMessageContextType } from "@/utils/message";
+import { setMessageApi, setNotificationApi } from "@/utils/message.ts";
+import { GlobalMessageContextType } from "@/utils/message.ts";
 
 
 export const GlobalMessageContext = createContext<GlobalMessageContextType | null>(

@@ -1,4 +1,4 @@
-import request from './request';
+import request from './request.ts';
 
 // 获取支持的 OAuth 平台及绑定状态
 export const getOAuthProviders = () => request.get('/api/v1/oauth/providers');

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Card, Spin, Tabs, Image, message } from "antd";
-import { getMediaList } from "../../api/upload";
+import { getMediaList } from "../../api/upload.ts";
 
 const Media: React.FC = () => {
   const [media, setMedia] = useState<any[]>([]);

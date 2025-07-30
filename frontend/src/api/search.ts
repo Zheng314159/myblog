@@ -1,4 +1,4 @@
-import request from './request';
+import request from './request.ts';
 
 // 搜索文章
 export const searchArticles = (q: string, params?: any) => 

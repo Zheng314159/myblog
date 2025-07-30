@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { useSelector } from "react-redux";
-import { RootState } from "../../app/store";
-import CommentSection from "../../components/Comment/CommentSection";
+import { RootState } from "../../app/store.ts";
+import CommentSection from "../../components/Comment/CommentSection.tsx";
 import { Button } from "antd";
-import MarkdownRenderer from "../../utils/markdownRenderer";
+import MarkdownRenderer from "../../utils/markdownRenderer.ts";
 
 const CommentTest: React.FC = () => {
   const { isAuthenticated, userInfo, isLoading } = useSelector((state: RootState) => state.user);

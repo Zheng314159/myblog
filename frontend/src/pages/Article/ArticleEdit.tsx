@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, unstable_usePrompt as usePrompt } from "react-router-dom";
 import { Card, Form, Input, Button, Select, Spin, Row, Col, Divider, Space, App } from "antd";
-import { createArticle, getArticle, updateArticle } from "../../api/article";
-import MarkdownEditor from "../../components/MarkdownEditor/MarkdownEditor";
-import MarkdownRenderer from "../../utils/markdownRenderer";
-import { getTags } from "../../api/tag";
+import { createArticle, getArticle, updateArticle } from "../../api/article.ts";
+import MarkdownEditor from "../../components/MarkdownEditor/MarkdownEditor.tsx";
+import MarkdownRenderer from "../../utils/markdownRenderer.ts";
+import { getTags } from "../../api/tag.ts";
 import { useSelector } from "react-redux";
-import { RootState } from "../../app/store";
-import MediaUpload from "../../components/Upload/MediaUpload";
+import { RootState } from "../../app/store.ts";
+import MediaUpload from "../../components/Upload/MediaUpload.tsx";
 import DOMPurify from "dompurify";
 
 const { Option } = Select;

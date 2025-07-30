@@ -1,6 +1,6 @@
 import React from "react";
 import MDEditor from "@uiw/react-md-editor";
-import MarkdownRenderer from "../../utils/markdownRenderer";
+import MarkdownRenderer from "../../utils/markdownRenderer.ts";
 import DOMPurify from "dompurify";
 
 interface Props {

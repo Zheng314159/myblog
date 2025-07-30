@@ -1,5 +1,5 @@
-import request from "./request";
-import { TokenManager } from "../utils/tokenManager";
+import request from "./request.ts";
+import { TokenManager } from "../utils/tokenManager.ts";
 
 export interface LoginParams {
   username: string;

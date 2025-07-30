@@ -1,9 +1,9 @@
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-import { RootState } from "../../app/store";
-import { logout } from "../../features/user/userSlice";
-import { TokenManager } from "../../utils/tokenManager";
+import { RootState } from "../../app/store.ts";
+import { logout } from "../../features/user/userSlice.ts";
+import { TokenManager } from "../../utils/tokenManager.ts";
 import "./Navbar.css";
 
 const Navbar: React.FC = () => {

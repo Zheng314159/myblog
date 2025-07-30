@@ -1,4 +1,4 @@
-import request from './request';
+import request from './request.ts';
 
 // 捐赠配置接口
 export interface DonationConfig {

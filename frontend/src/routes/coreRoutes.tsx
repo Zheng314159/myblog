@@ -1,21 +1,21 @@
 // src/router/coreRoutes.ts
 import { lazy } from "react";
 
-const Home = lazy(() => import("../pages/Home/Home"));
-const Login = lazy(() => import("../pages/Auth/Login"));
-const Register = lazy(() => import("../pages/Auth/Register"));
-const ForgotPassword = lazy(() => import("../pages/Auth/ForgotPassword"));
-const ResetPassword = lazy(() => import("../pages/Auth/ResetPassword"));
-const OAuthCallback = lazy(() => import("../pages/Auth/OAuthCallback"));
-const ArticleDetail = lazy(() => import("../pages/Article/ArticleDetail"));
-const ArticleEdit = lazy(() => import("../pages/Article/ArticleEdit"));
-const Profile = lazy(() => import("../pages/Profile/Profile"));
-const Admin = lazy(() => import("../pages/Admin/Admin"));
-const Search = lazy(() => import("../pages/Search/Search"));
-const Media = lazy(() => import("../pages/Media/Media"));
-const DonationPage = lazy(() => import("../pages/Donation/DonationPage"));
-const DonationResult = lazy(() => import("../pages/Donation/DonationResult"));
-const NotFound = lazy(() => import("../pages/NotFound"));
+const Home = lazy(() => import("../pages/Home/Home.tsx"));
+const Login = lazy(() => import("../pages/Auth/Login.tsx"));
+const Register = lazy(() => import("../pages/Auth/Register.tsx"));
+const ForgotPassword = lazy(() => import("../pages/Auth/ForgotPassword.tsx"));
+const ResetPassword = lazy(() => import("../pages/Auth/ResetPassword.tsx"));
+const OAuthCallback = lazy(() => import("../pages/Auth/OAuthCallback.tsx"));
+const ArticleDetail = lazy(() => import("../pages/Article/ArticleDetail.tsx"));
+const ArticleEdit = lazy(() => import("../pages/Article/ArticleEdit.tsx"));
+const Profile = lazy(() => import("../pages/Profile/Profile.tsx"));
+const Admin = lazy(() => import("../pages/Admin/Admin.tsx"));
+const Search = lazy(() => import("../pages/Search/Search.tsx"));
+const Media = lazy(() => import("../pages/Media/Media.tsx"));
+const DonationPage = lazy(() => import("../pages/Donation/DonationPage.tsx"));
+const DonationResult = lazy(() => import("../pages/Donation/DonationResult.tsx"));
+const NotFound = lazy(() => import("../pages/NotFound.tsx"));
 
 export interface RouteConfig {
   path: string;

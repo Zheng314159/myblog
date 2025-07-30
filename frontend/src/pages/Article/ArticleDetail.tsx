@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getArticle } from "../../api/article";
+import { getArticle } from "../../api/article.ts";
 import { Card, Typography, Tag, Spin, Divider, Button } from "antd";
-import MarkdownViewer from "../../components/MarkdownViewer/MarkdownViewer";
-import CommentSection from "../../components/Comment/CommentSection";
+import MarkdownViewer from "../../components/MarkdownViewer/MarkdownViewer.tsx";
+import CommentSection from "../../components/Comment/CommentSection.tsx";
 import { useSelector } from "react-redux";
-import { RootState } from "../../app/store";
+import { RootState } from "../../app/store.ts";
 
 const { Title, Text } = Typography;
 

@@ -1,4 +1,4 @@
-import request from "./request";
+import request from "./request.ts";
 
 export const uploadImage = (file: File) => {
   const formData = new FormData();

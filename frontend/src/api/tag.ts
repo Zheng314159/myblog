@@ -1,4 +1,4 @@
-import request from './request';
+import request from './request.ts';
 
 export const getTags = () => request.get('/tags/');
 export const getPopularTags = () => request.get('/tags/popular');

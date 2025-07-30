@@ -1,6 +1,6 @@
 /* 导入 Markdown 样式 */
 @import './markdown.css';
-
+@import "tailwindcss";
 /* 全局样式，可根据需要补充 */
 body {
   margin: 0;

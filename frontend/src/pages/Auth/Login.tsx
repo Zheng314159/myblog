@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { Form, Input, Button, Typography, App, Divider, Alert } from "antd";
 import { GithubOutlined, GoogleOutlined } from "@ant-design/icons";
-import { login, getMe } from "../../api/auth";
+import { login, getMe } from "../../api/auth.ts";
 import { useDispatch } from "react-redux";
-import { loginSuccess } from "../../features/user/userSlice";
+import { loginSuccess } from "../../features/user/userSlice.ts";
 import { useNavigate } from "react-router-dom";
-import { TokenManager } from "../../utils/tokenManager";
+import { TokenManager } from "../../utils/tokenManager.ts";
 
 const { Title } = Typography;
 

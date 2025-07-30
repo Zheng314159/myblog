@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import MarkdownRenderer from '../../utils/markdownRenderer';
+import MarkdownRenderer from '../../utils/markdownRenderer.ts';
 
 const LaTeXTest: React.FC = () => {
   const [latexInput, setLatexInput] = useState('\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}');

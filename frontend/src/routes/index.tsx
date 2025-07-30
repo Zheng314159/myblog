@@ -1,11 +1,11 @@
 import React, { Suspense } from "react";
 import { Routes, Route, Outlet } from "react-router-dom";
-import MainLayout from "../layouts/MainLayout";
-import FullScreenLoader from "../components/Loader/FullScreenLoader";
+import MainLayout from "../layouts/MainLayout.tsx";
+import FullScreenLoader from "../components/Loader/FullScreenLoader.tsx";
 
-import RequireAuth from "../components/Auth/RequireAuth";
-import coreRoutes from "./coreRoutes";
-import testRoutes from "./testRoutes";
+import RequireAuth from "../components/Auth/RequireAuth.tsx";
+import coreRoutes from "./coreRoutes.tsx";
+import testRoutes from "./testRoutes.tsx";
 
 const AppRouter: React.FC = () => (
   <Suspense fallback={<FullScreenLoader />}>

@@ -1,4 +1,4 @@
-import request from "./request";
+import request from "./request.ts";
 
 export const getComments = (articleId: number | string) => request.get(`/articles/${articleId}/comments`);
 export const addComment = (articleId: number | string, data: any) => request.post(`/articles/${articleId}/comments`, data);

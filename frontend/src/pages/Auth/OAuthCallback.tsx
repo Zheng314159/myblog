@@ -2,9 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { App, Spin, Result } from "antd";
 import { useDispatch } from "react-redux";
-import { loginSuccess } from "../../features/user/userSlice";
-import { getMe } from "../../api/auth";
-import { TokenManager } from "../../utils/tokenManager";
+import { loginSuccess } from "../../features/user/userSlice.ts";
+import { getMe } from "../../api/auth.ts";
+import { TokenManager } from "../../utils/tokenManager.ts";
 
 const OAuthCallback: React.FC = () => {
   const [searchParams] = useSearchParams();

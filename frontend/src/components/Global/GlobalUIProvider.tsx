@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { App, Modal, Spin } from "antd";
 
-import type { GlobalUIContextType } from "@/utils/types";
+import type { GlobalUIContextType } from "@/utils/types.ts";
 import { LoadingOutlined } from "@ant-design/icons";
 
 export const GlobalUIContext = createContext<GlobalUIContextType | null>(null);

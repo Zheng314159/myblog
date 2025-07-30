@@ -1,7 +1,7 @@
 // src/utils/tokenManager.ts
 import axios from "axios";
-import { showSessionExpiredModal } from "./showSessionExpiredModal";
-import {showTokenRefreshToast} from "./showTokenRefreshToast";
+import { showSessionExpiredModal } from "./showSessionExpiredModal.ts";
+import {showTokenRefreshToast} from "./showTokenRefreshToast.ts";
 
 export interface TokenInfo {
   access_token: string;

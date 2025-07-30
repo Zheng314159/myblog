@@ -17,10 +17,10 @@ import {
   Select,
 } from 'antd';
 import { HeartOutlined, UserOutlined, MessageOutlined } from '@ant-design/icons';
-import { createDonation, getDonationConfig, DonationConfig, getDonationGoals, getPaymentMethods, DonationGoal } from '../../api/donation';
+import { createDonation, getDonationConfig, DonationConfig, getDonationGoals, getPaymentMethods, DonationGoal } from '../../api/donation.ts';
 import { useSelector } from 'react-redux';
-import { RootState } from '../../app/store';
-import PaymentDetailModal from './PaymentDetailModal';
+import { RootState } from '../../app/store.ts';
+import PaymentDetailModal from './PaymentDetailModal.tsx';
 
 const { TextArea } = Input;
 const { Title, Text } = Typography;

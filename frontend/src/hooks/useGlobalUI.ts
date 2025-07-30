@@ -1,6 +1,6 @@
 import { useContext } from "react";
-import { GlobalUIContext } from "@/components/Global/GlobalUIProvider";
-import type { GlobalUIContextType } from "@/utils/types";
+import { GlobalUIContext } from "@/components/Global/GlobalUIProvider.tsx";
+import type { GlobalUIContextType } from "@/utils/types.ts";
 
 export const useGlobalUI = (): GlobalUIContextType => {
   const context = useContext(GlobalUIContext);

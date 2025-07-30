@@ -23,14 +23,14 @@ import {
   DollarOutlined,
   CalendarOutlined,
 } from '@ant-design/icons';
-import DonationForm from '../../components/Donation/DonationForm';
+import DonationForm from '../../components/Donation/DonationForm.tsx';
 import {
   getDonationGoals,
   getPublicDonationStats,
   getDonationConfig,
   DonationGoal,
   DonationConfig,
-} from '../../api/donation';
+} from '../../api/donation.ts';
 import confetti from 'canvas-confetti';
 
 const { Content } = Layout;

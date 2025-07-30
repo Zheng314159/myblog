@@ -1,7 +1,7 @@
 import React, { useRef } from "react";
 import { Button, Upload, Space, App } from "antd";
 import { UploadOutlined, FileImageOutlined, VideoCameraOutlined, FilePdfOutlined } from "@ant-design/icons";
-import { uploadImage, uploadVideo, uploadPdf } from "../../api/upload";
+import { uploadImage, uploadVideo, uploadPdf } from "../../api/upload.ts";
 
 interface MediaUploadProps {
   onUpload: (url: string, type: string) => void;

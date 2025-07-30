@@ -1,4 +1,4 @@
-import request from "./request";
+import request from "./request.ts";
 
 export const getArticles = (params?: any) => request.get("/articles/", { params });
 export const getArticle = (id: number | string) => request.get(`/articles/${id}`);

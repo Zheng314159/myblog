@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { List, Form, Input, Button, App } from "antd";
-import { getComments, addComment } from "../../api/comment";
+import { getComments, addComment } from "../../api/comment.ts";
 import { useSelector } from "react-redux";
-import { RootState } from "../../app/store";
-import MarkdownRenderer from "../../utils/markdownRenderer";
+import { RootState } from "../../app/store.ts";
+import MarkdownRenderer from "../../utils/markdownRenderer.ts";
 import DOMPurify from "dompurify";
 
 const CommentSection: React.FC<{ articleId: string | number }> = ({ articleId }) => {

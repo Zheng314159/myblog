@@ -1,5 +1,5 @@
 import React from 'react';
-import { TokenManager } from '../../utils/tokenManager';
+import { TokenManager } from '../../utils/tokenManager.ts';
 
 const Debug: React.FC = () => {
   const [debugInfo, setDebugInfo] = React.useState<string>('');

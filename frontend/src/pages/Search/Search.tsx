@@ -3,14 +3,14 @@ import { List, Tag, Input, Typography, Spin, Empty } from "antd";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { searchArticles } from "../../api/search.ts";
 import { getPopularTags } from "../../api/tag.ts";
-
+import { PopularTag } from "../../api/tag.ts";
 const { Title } = Typography;
 
 const Search: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [articles, setArticles] = useState<any[]>([]);
-  const [tags, setTags] = useState<string[]>([]);
+  const [tags, setTags] = useState<PopularTag[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -28,7 +28,7 @@ const Search: React.FC = () => {
         setLoading(false);
       });
     getPopularTags().then((res) => {
-      setTags(res.tags || res.data || []);
+      setTags(res.data.tags || []);
     });
   }, [query]);
 

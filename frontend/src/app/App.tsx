@@ -3,14 +3,14 @@ import { App as AntdApp, ConfigProvider, theme } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { Helmet } from "react-helmet-async";
 
-import AppRouter from "../routes/index";
-import Notification from "../components/Notification/Notification";
+import AppRouter from "../routes/index.tsx";
+import Notification from "../components/Notification/Notification.tsx";
 import { useDispatch } from "react-redux";
-import { loginSuccess, logout, setLoading } from "../features/user/userSlice";
-import { getMe } from "../api/auth";
-import { TokenManager } from "../utils/tokenManager";
+import { loginSuccess, logout, setLoading } from "../features/user/userSlice.ts";
+import { getMe } from "../api/auth.ts";
+import { TokenManager } from "../utils/tokenManager.ts";
 import { useLocation } from "react-router-dom";
-import RouteLogger from "../test/RouteLogger";
+import RouteLogger from "../test/RouteLogger.tsx";
 
 const App: React.FC = () => {
   const dispatch = useDispatch();

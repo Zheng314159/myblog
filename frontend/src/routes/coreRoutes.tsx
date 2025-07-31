@@ -10,7 +10,7 @@ const OAuthCallback = lazy(() => import("../pages/Auth/OAuthCallback.tsx"));
 const ArticleDetail = lazy(() => import("../pages/Article/ArticleDetail.tsx"));
 const ArticleEdit = lazy(() => import("../pages/Article/ArticleEdit.tsx"));
 const Profile = lazy(() => import("../pages/Profile/Profile.tsx"));
-const Admin = lazy(() => import("../pages/Admin/Admin.tsx"));
+// const Admin = lazy(() => import("../pages/Admin/Admin.tsx"));
 const Search = lazy(() => import("../pages/Search/Search.tsx"));
 const Media = lazy(() => import("../pages/Media/Media.tsx"));
 const DonationPage = lazy(() => import("../pages/Donation/DonationPage.tsx"));
@@ -35,7 +35,7 @@ const coreRoutes: RouteConfig[] = [
   { path: "/article/:id", component: ArticleDetail },
   { path: "/edit/:id", component: ArticleEdit, auth: true },
   { path: "/profile", component: Profile, auth: true },
-  { path: "/admin", component: Admin, auth: true, role: "ADMIN" },
+  // { path: "/admin", component: Admin, auth: true, role: "ADMIN" },
   { path: "/media", component: Media },
   { path: "/donation", component: DonationPage },
   { path: "/donation/result", component: DonationResult },

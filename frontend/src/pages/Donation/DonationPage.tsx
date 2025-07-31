@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Layout,
   Card,
@@ -37,23 +37,27 @@ const { Content } = Layout;
 const { Title, Text, Paragraph } = Typography;
 
 const DonationPage: React.FC = () => {
+  const completedGoalIdsRef = useRef<Set<number>>(new Set());
   const [goals, setGoals] = useState<DonationGoal[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [config, setConfig] = useState<DonationConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [showDonationModal, setShowDonationModal] = useState(false);
-
+  
   useEffect(() => {
     loadData();
   }, []);
 
-  useEffect(() => {
-    // 只要有目标完成就庆祝
-    if (goals.some(g => g.is_completed && !g._celebrated)) {
-      confetti();
-      setGoals(goals.map(g => g.is_completed ? { ...g, _celebrated: true } : g));
-    }
-  }, [goals]);
+useEffect(() => {
+  const newCompletions = goals.filter(
+    (g) => g.is_completed && !completedGoalIdsRef.current.has(g.id)
+  );
+
+  if (newCompletions.length > 0) {
+    confetti();
+    newCompletions.forEach((g) => completedGoalIdsRef.current.add(g.id));
+  }
+}, [goals]);
 
   const loadData = async () => {
     setLoading(true);
@@ -82,47 +86,7 @@ const DonationPage: React.FC = () => {
     loadData();
   };
 
-  const getPaymentMethodColor = (method: string) => {
-    const colors = {
-      ALIPAY: 'blue',
-      WECHAT: 'green',
-      PAYPAL: 'orange',
-      BANK_TRANSFER: 'purple',
-      CRYPTO: 'red',
-    };
-    return colors[method as keyof typeof colors] || 'default';
-  };
 
-  const getPaymentMethodLabel = (method: string) => {
-    const labels = {
-      ALIPAY: '支付宝',
-      WECHAT: '微信支付',
-      PAYPAL: 'PayPal',
-      BANK_TRANSFER: '银行转账',
-      CRYPTO: '加密货币',
-    };
-    return labels[method as keyof typeof labels] || method;
-  };
-
-  const getStatusColor = (status: string) => {
-    const colors = {
-      PENDING: 'orange',
-      SUCCESS: 'green',
-      FAILED: 'red',
-      CANCELLED: 'gray',
-    };
-    return colors[status as keyof typeof colors] || 'default';
-  };
-
-  const getStatusLabel = (status: string) => {
-    const labels = {
-      PENDING: '待处理',
-      SUCCESS: '成功',
-      FAILED: '失败',
-      CANCELLED: '已取消',
-    };
-    return labels[status as keyof typeof labels] || status;
-  };
 
   return (
     <Layout style={{ minHeight: '100vh', background: '#f5f5f5' }}>

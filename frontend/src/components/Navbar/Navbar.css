@@ -20,7 +20,7 @@
   font-size: 1.1rem;
   padding: 16px 12px 12px 12px;
   border-radius: 4px 4px 0 0;
-  transition: background 0.2s;
+  transition: background 0.2s ease;
 }
 .nav-item.active, .nav-item:hover {
   background: #e6f0fa;

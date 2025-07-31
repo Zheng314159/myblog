@@ -6,7 +6,6 @@ import {
   Radio,
   Checkbox,
   InputNumber,
-  message,
   Card,
   Space,
   Divider,
@@ -146,23 +145,6 @@ const DonationForm: React.FC<DonationFormProps> = ({ onSuccess, onCancel }) => {
     ? JSON.parse(config.preset_amounts) 
     : [5, 10, 20, 50, 100];
 
-  const getPaymentMethodLabel = (method: string) => {
-    const labels = {
-      ALIPAY: '支付宝',
-      WECHAT: '微信支付',
-      PAYPAL: 'PayPal',
-    };
-    return labels[method as keyof typeof labels] || method;
-  };
-
-  const getDonationTypeLabel = (type: string) => {
-    const labels = {
-      ONE_TIME: '一次性捐赠',
-      MONTHLY: '月度捐赠',
-      YEARLY: '年度捐赠',
-    };
-    return labels[type as keyof typeof labels] || type;
-  };
 
   if (!config) {
     return <div>加载中...</div>;
@@ -192,8 +174,8 @@ const DonationForm: React.FC<DonationFormProps> = ({ onSuccess, onCancel }) => {
 
   return (
     <Card>
-      <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-        <HeartOutlined style={{ fontSize: '48px', color: '#ff4d4f' }} />
+      <div style={{ textAlign: "center", marginBottom: "24px" }}>
+        <HeartOutlined style={{ fontSize: "48px", color: "#ff4d4f" }} />
         <Title level={2}>{config.title}</Title>
         <Text type="secondary">{config.description}</Text>
       </div>
@@ -203,17 +185,17 @@ const DonationForm: React.FC<DonationFormProps> = ({ onSuccess, onCancel }) => {
         layout="vertical"
         onFinish={handleSubmit}
         initialValues={{
-          payment_method: config.alipay_enabled ? 'ALIPAY' : undefined,
+          payment_method: config.alipay_enabled ? "ALIPAY" : undefined,
         }}
       >
         {/* 捐赠者信息 */}
         <Form.Item
           label="捐赠者姓名"
           name="donor_name"
-          rules={[{ required: true, message: '请输入捐赠者姓名' }]}
+          rules={[{ required: true, message: "请输入捐赠者姓名" }]}
         >
-          <Input 
-            prefix={<UserOutlined />} 
+          <Input
+            prefix={<UserOutlined />}
             placeholder="请输入您的姓名"
             maxLength={50}
           />
@@ -222,19 +204,16 @@ const DonationForm: React.FC<DonationFormProps> = ({ onSuccess, onCancel }) => {
         <Form.Item
           label="邮箱地址"
           name="donor_email"
-          rules={[
-            { type: 'email', message: '请输入有效的邮箱地址' }
-          ]}
+          rules={[{ type: "email", message: "请输入有效的邮箱地址" }]}
         >
           <Input placeholder="可选，用于接收感谢邮件" />
         </Form.Item>
 
         <Form.Item
-          label="留言"
+          label={<span><MessageOutlined style={{ marginRight: 4 }} />留言</span>}
           name="donor_message"
         >
           <TextArea
-            prefix={<MessageOutlined />}
             placeholder="可选，留下您想说的话..."
             rows={3}
             maxLength={200}
@@ -250,12 +229,12 @@ const DonationForm: React.FC<DonationFormProps> = ({ onSuccess, onCancel }) => {
 
         {/* 捐赠金额 */}
         <Form.Item label="捐赠金额">
-          <Space direction="vertical" style={{ width: '100%' }}>
+          <Space direction="vertical" style={{ width: "100%" }}>
             <Row gutter={[8, 8]}>
               {presetAmounts.map((amount: number) => (
                 <Col key={amount}>
                   <Button
-                    type={customAmount === amount ? 'primary' : 'default'}
+                    type={customAmount === amount ? "primary" : "default"}
                     onClick={() => {
                       setCustomAmount(amount);
                       form.setFieldsValue({ amount: amount });
@@ -268,10 +247,20 @@ const DonationForm: React.FC<DonationFormProps> = ({ onSuccess, onCancel }) => {
             </Row>
             {/* 目标选择下拉框 */}
             {goals.length > 0 && (
-              <Form.Item label="捐赠目标" name="goal_id" rules={[{ required: true, message: '请选择捐赠目标' }]} initialValue={goals[0]?.id?.toString()}>
-                <Select style={{ width: '100%' }}>
-                  {goals.map(goal => (
-                    <Select.Option value={goal.id.toString()} key={goal.id.toString()}>{goal.title}</Select.Option>
+              <Form.Item
+                label="捐赠目标"
+                name="goal_id"
+                rules={[{ required: true, message: "请选择捐赠目标" }]}
+                initialValue={goals[0]?.id?.toString()}
+              >
+                <Select style={{ width: "100%" }}>
+                  {goals.map((goal) => (
+                    <Select.Option
+                      value={goal.id.toString()}
+                      key={goal.id.toString()}
+                    >
+                      {goal.title}
+                    </Select.Option>
                   ))}
                 </Select>
               </Form.Item>
@@ -282,7 +271,7 @@ const DonationForm: React.FC<DonationFormProps> = ({ onSuccess, onCancel }) => {
                 min={0.01}
                 max={99999}
                 precision={2}
-                style={{ width: '100%' }}
+                style={{ width: "100%" }}
                 onChange={(value) => setCustomAmount(value)}
                 addonBefore="¥"
               />
@@ -296,14 +285,16 @@ const DonationForm: React.FC<DonationFormProps> = ({ onSuccess, onCancel }) => {
         <Form.Item
           label="支付方式"
           name="payment_method"
-          rules={[{ required: true, message: '请选择支付方式' }]}
+          rules={[{ required: true, message: "请选择支付方式" }]}
         >
           <Radio.Group
             value={paymentMethod}
-            onChange={e => setPaymentMethod(e.target.value)}
+            onChange={(e) => setPaymentMethod(e.target.value)}
           >
-            {methods.map(m => (
-              <Radio key={m.type} value={paymentTypeMap[m.type] || m.type}>{m.name}</Radio>
+            {methods.map((m) => (
+              <Radio key={m.type} value={paymentTypeMap[m.type] || m.type}>
+                {m.name}
+              </Radio>
             ))}
           </Radio.Group>
         </Form.Item>
@@ -312,10 +303,10 @@ const DonationForm: React.FC<DonationFormProps> = ({ onSuccess, onCancel }) => {
 
         {/* 提交按钮 */}
         <Form.Item>
-          <Space style={{ width: '100%', justifyContent: 'center' }}>
-            <Button 
-              type="primary" 
-              htmlType="submit" 
+          <Space style={{ width: "100%", justifyContent: "center" }}>
+            <Button
+              type="primary"
+              htmlType="submit"
               loading={loading}
               size="large"
               icon={<HeartOutlined />}

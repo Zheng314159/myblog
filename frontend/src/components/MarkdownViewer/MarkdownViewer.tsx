@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import MarkdownRenderer from "../../utils/markdownRenderer";
+import MarkdownRenderer from "../../utils/markdownRenderer.ts";
 import DOMPurify from "dompurify";
 
 interface MarkdownViewerProps {

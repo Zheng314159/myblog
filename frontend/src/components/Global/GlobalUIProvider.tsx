@@ -58,7 +58,7 @@ const AppBridge: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           }}
         >
           <Spin
-            spinning={true}
+            spinning={spinning}
             indicator={<LoadingOutlined style={{ fontSize: 48 }} spin />}
             tip={spinContent}
             size="large"

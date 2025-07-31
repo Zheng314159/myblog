@@ -1,7 +1,18 @@
 import request from './request.ts';
 
+
+export type PopularTag = {
+  id: number;
+  name: string;
+  description: string;
+  article_count: number;
+};
+
+export type TagResponse = {
+  tags: PopularTag[];
+};
 export const getTags = () => request.get('/tags/');
-export const getPopularTags = () => request.get('/tags/popular');
+export const getPopularTags = () => request.get<TagResponse>("/tags/popular");
 
 // fastapi还未实现
 // /api/v1/tag/：获取所有标签（支持分页、搜索）

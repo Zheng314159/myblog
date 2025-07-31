@@ -20,11 +20,11 @@ import {
   PictureOutlined, 
   EyeOutlined 
 } from "@ant-design/icons";
-import { getArticles } from "../../api/article";
-import { getMediaList } from "../../api/upload";
-import { getStatistics, getConfig, getNotifications } from "../../api/config";
+import { getArticles } from "../../api/article.ts";
+import { getMediaList } from "../../api/upload.ts";
+import { getStatistics, getConfig, getNotifications } from "../../api/config.ts";
 import { useNavigate } from "react-router-dom";
-import { connectWebSocket, disconnectWebSocket } from "../../api/websocket";
+import { connectWebSocket, disconnectWebSocket } from "../../api/websocket.ts";
 
 const { Title, Paragraph } = Typography;
 

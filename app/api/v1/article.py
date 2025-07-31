@@ -248,7 +248,7 @@ async def get_article_comments(
     return [CommentResponse.from_orm(comment) for comment in comments]
 
 
-@router.delete("/comments/{comment_id}")
+@router.delete("/{article_id}/comments/{comment_id}")
 async def delete_comment(
     comment_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -262,7 +262,7 @@ async def delete_comment(
         raise NotFoundError("Comment not found")
     
     # 检查权限
-    if comment.author_id != current_user.id and current_user.role != UserRole.ADMIN:
+    if comment.author_id != current_user.id:
         raise AuthorizationError("You can only delete your own comments")
     
     # 删除评论

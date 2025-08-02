@@ -13,7 +13,6 @@ from app.core.database import get_db
 from app.core.exceptions import NotFoundError, AuthorizationError
 from app.core.security import get_current_user
 from app.core.tasks import add_comment_notification_task
-from app.core.latex import latex_renderer
 from app.models.user import User, UserRole
 from app.models.article import Article, ArticleStatus
 from app.models.comment import Comment
@@ -120,54 +119,6 @@ async def get_image(filename: str):
         raise HTTPException(status_code=404, detail="Image not found")
     
     return FileResponse(file_path)
-
-
-@router.get("/latex/{filename}")
-async def get_latex_image(filename: str):
-    """获取LaTeX渲染的图片文件"""
-    file_path = get_file_path(filename, LATEX_DIR)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="LaTeX image not found")
-    
-    # 检查文件类型
-    if filename.endswith('.svg'):
-        return FileResponse(file_path, media_type="image/svg+xml")
-    else:
-        return FileResponse(file_path)
-
-
-@router.post("/latex/preview")
-async def preview_latex(
-    latex_content: str = Form(...),
-    block_type: str = Form(default="block")
-):
-    """预览LaTeX内容"""
-    # 验证LaTeX语法
-    is_valid, message = latex_renderer.validate_latex(latex_content)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=message)
-    
-    # 渲染LaTeX
-    image_url = latex_renderer.render_latex_to_image(latex_content, block_type)
-    if not image_url:
-        raise HTTPException(status_code=500, detail="LaTeX渲染失败")
-    
-    return {
-        "image_url": image_url,
-        "latex_content": latex_content,
-        "block_type": block_type
-    }
-
-
-@router.post("/latex/validate")
-async def validate_latex(latex_content: str = Form(...)):
-    """验证LaTeX语法"""
-    is_valid, message = latex_renderer.validate_latex(latex_content)
-    return {
-        "is_valid": is_valid,
-        "message": message,
-        "latex_content": latex_content
-    }
 
 
 # 评论相关

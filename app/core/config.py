@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
+from pydantic import EmailStr, Field
 import os
 from dotenv import load_dotenv
 
@@ -31,12 +31,15 @@ class Settings(BaseSettings):
     # Email Settings
     smtp_server: str = "smtp.gmail.com"
     smtp_port: int = 587
-    email_user: str = ""
+    email_user: EmailStr = ""
     email_password: str = ""
-    email_from: str = ""
+    email_from: EmailStr = ""
     notification_email: Optional[str] = Field(default=None, alias="NOTIFICATION_EMAIL")
     email_enabled: bool = False
-    
+    smtp_tls: bool = True  # 是否使用 TLS
+    use_celery: bool = Field(default=False, alias="USE_CELERY")  # 是否使用 Celery 发送邮件
+    celery_broker_url: str = Field(default="redis://localhost:6379/0", alias="CELERY_BROKER_URL")
+    celery_backend_url: str = Field(default="redis://localhost:6379/1", alias="CELERY_BACKEND_URL")
     # CORS Settings
     allowed_origins: List[str] = [
         "http://localhost:3000",
@@ -151,6 +154,7 @@ class Settings(BaseSettings):
         env_file = ENV_FILE
         env_file_encoding = "utf-8"
         case_sensitive = False
+        extra = "forbid"
 
     # model_config = SettingsConfigDict(
     #     env_file=f".env.{os.getenv('ENVIRONMENT', 'development')}",

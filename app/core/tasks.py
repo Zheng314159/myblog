@@ -3,6 +3,7 @@ import logging
 from typing import Optional
 from fastapi import BackgroundTasks
 from app.core.email import email_service
+from app.services.email.email_templates import send_password_reset_email,send_verification_code_email
 from app.models.user import User
 from app.models.article import Article
 from app.models.comment import Comment
@@ -43,7 +44,7 @@ class TaskService:
             await asyncio.sleep(1)
             
             # 发送密码重置邮件
-            success = email_service.send_password_reset_email(email, username, reset_token)
+            success = send_password_reset_email(email, username, reset_token)
             
             if success:
                 logger.info(f"密码重置邮件发送成功: {email}")
@@ -90,7 +91,7 @@ class TaskService:
             await asyncio.sleep(1)
             
             # 发送验证码邮件
-            success = email_service.send_verification_code_email(email, verification_code)
+            success = send_verification_code_email(email, verification_code)
             
             if success:
                 logger.info(f"验证码邮件发送成功: {email}")

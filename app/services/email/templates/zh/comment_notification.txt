@@ -1,0 +1,9 @@
+亲爱的 {{username}}，
+
+您的文章 "{{article_title}}" 收到了新评论：
+
+"{{comment_content}}"
+
+请登录查看完整评论。
+
+{{app_name}} 团队敬上

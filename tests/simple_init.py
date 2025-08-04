@@ -2,15 +2,18 @@
 """
 简单数据库初始化
 """
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import asyncio
 import os
-from sqlmodel import SQLModel
+from app.core.base import BaseModelMixin
 from app.core.database import engine, async_session
 from app.models.user import User, UserRole
 from app.core.security import get_password_hash
 
 # 导入所有模型以确保它们被注册
-from app.models import user, article, comment, tag, donation, media, system_notification
+from app.models import __all_models__
 
 async def init_db():
     """初始化数据库"""
@@ -25,7 +28,7 @@ async def init_db():
     # 创建所有表
     print("创建数据库表...")
     async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
+        await conn.run_sync(BaseModelMixin.metadata.create_all)
     print("✓ 数据库表创建完成")
     
     # 创建管理员用户

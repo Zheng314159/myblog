@@ -1,14 +1,10 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
 from sqlmodel import SQLModel
 from app.core.config import settings
 from app.core.search import FTSSearch
 
-
-class Base(DeclarativeBase):
-    pass
 
 
 # 创建异步引擎

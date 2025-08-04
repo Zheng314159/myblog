@@ -3,9 +3,10 @@ from pathlib import Path
 from alembic import context
 from dotenv import load_dotenv
 from sqlalchemy import inspect
-from sqlmodel import SQLModel
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncEngine
+
+from app.core.base import BaseModelMixin
 
 import asyncio
 import os
@@ -50,7 +51,7 @@ def get_sync_url() -> str:
 config.set_main_option("sqlalchemy.url", get_sync_url())
 
 
-target_metadata = SQLModel.metadata
+target_metadata = BaseModelMixin.metadata
 
 def include_object(object, name, type_, reflected, compare_to):
     if name and name.startswith("articles_fts"):

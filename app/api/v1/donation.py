@@ -12,10 +12,13 @@ from app.core.security import get_current_user, require_admin
 from app.models.user import User, UserRole
 from app.models.donation import (
     DonationConfig, DonationRecord, DonationGoal,
-    DonationStatus, PaymentMethod,
-    DonationConfigUpdate, DonationCreate, DonationResponse,
+    DonationStatus, PaymentMethod
+)
+from app.schemas.donation import (
+    DonationConfigUpdate, DonationCreate, DonationResponse,DonationConfigResponse,
     DonationGoalCreate, DonationGoalUpdate, DonationGoalResponse,
     DonationStats
+
 )
 from app.core.email import email_service
 from app.core.config import settings
@@ -28,7 +31,7 @@ router = APIRouter(prefix="/donation", tags=["捐赠"])
 
 # ==================== 捐赠配置管理 ====================
 
-@router.get("/config", response_model=DonationConfig)
+@router.get("/config", response_model=DonationConfigResponse)
 async def get_donation_config():
     """获取捐赠配置"""
     async with async_session() as session:
@@ -45,7 +48,7 @@ async def get_donation_config():
         return config
 
 
-@router.put("/config", response_model=DonationConfig)
+@router.put("/config", response_model=DonationConfigResponse)
 async def update_donation_config(
     config_update: DonationConfigUpdate,
     current_user: User = Depends(require_admin)

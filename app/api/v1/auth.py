@@ -8,7 +8,8 @@ from app.core.security import verify_password, get_password_hash, create_access_
 from app.core.redis import redis_manager
 from app.core.exceptions import AuthenticationError, ConflictError
 from app.core.tasks import add_welcome_email_task, add_password_reset_email_task, add_verification_code_email_task
-from app.models.user import User, UserCreate, UserRole
+from app.models.user import User
+from app.schemas.user import UserCreate
 from app.schemas.auth import Token, LoginRequest, RefreshTokenRequest, LogoutRequest
 from fastapi import Depends
 from app.api.deps import get_current_user

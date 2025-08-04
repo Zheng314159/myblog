@@ -1,10 +1,13 @@
 from datetime import datetime
 from typing import Optional, List, TYPE_CHECKING, Any
-from sqlmodel import SQLModel, Field, Relationship, Text
+from pydantic import BaseModel
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from enum import Enum
-from sqlalchemy import Column, Index
+from sqlalchemy import Column, DateTime, ForeignKey, Index, Text, func
 from sqlalchemy.dialects.postgresql import TSVECTOR
-from app.core.config import settings    
+from app.core.config import settings
+from app.core.base import BaseModelMixin
+from app.models.fts import get_fts_columns 
 
 if TYPE_CHECKING:
     from .user import User
@@ -12,13 +15,7 @@ if TYPE_CHECKING:
     from .tag import ArticleTag
     
 # IS_POSTGRES = settings.is_postgres
-if settings.is_postgres:
-    from app.models.fts_pg import tsv_zh_column, tsv_en_column, tsv_zh_index, tsv_en_index
-else:
-    tsv_zh_column = Column("tsv_zh", Text, nullable=True)
-    tsv_en_column = Column("tsv_en", Text, nullable=True)
-    tsv_zh_index = None
-    tsv_en_index = None
+fts = get_fts_columns(settings.is_postgres)
 
 class ArticleStatus(str, Enum):
     DRAFT = "draft"
@@ -26,55 +23,35 @@ class ArticleStatus(str, Enum):
     ARCHIVED = "archived"
 
 
-class ArticleBase(SQLModel):
-    title: str = Field(index=True)
-    content: str
-    summary: str|None = None
-    status: ArticleStatus = Field(default=ArticleStatus.DRAFT)
-    is_featured: bool = Field(default=False)
+class ArticleBase:
+    title: Mapped[str] = mapped_column(index=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    summary: Mapped[str|None] = mapped_column(Text, nullable=True, comment="文章摘要")
+    status: Mapped[ArticleStatus] = mapped_column(default=ArticleStatus.DRAFT)
+    is_featured: Mapped[bool] = mapped_column(default=False)
     # LaTeX支持
-    has_latex: bool = Field(default=False, description="是否包含LaTeX内容")
-    latex_content: Optional[str] = Field(default=None, description="LaTeX内容")
+    has_latex: Mapped[bool] = mapped_column(default=False, comment="是否包含LaTeX内容")
+    latex_content: Mapped[Optional[str]] = mapped_column(default=None,nullable=True, comment="LaTeX内容")
 
 
-class Article(ArticleBase, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    author_id: int = Field(foreign_key="user.id")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-    published_at: Optional[datetime] = None
-    view_count: int = Field(default=0, description="浏览量")
+class Article(ArticleBase, BaseModelMixin):
+    __tablename__ = "article"
+    id: Mapped[int] = mapped_column(default=None, primary_key=True)
+    author_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
+    published_at: Mapped[Optional[datetime]] = mapped_column(default=None, nullable=True, comment="发布时间")
+    view_count: Mapped[int] = mapped_column(default=0, comment="浏览量")
 
     # ✅ 永远声明字段，避免 Alembic 忽略字段变化
-    tsv_zh: Optional[str] = Field(default=None, sa_column=tsv_zh_column)
-    tsv_en: Optional[str] = Field(default=None, sa_column=tsv_en_column)
+    # Full-text search columns (手动注入 Column 类型)
+    tsv_zh = fts["tsv_zh"]
+    tsv_en = fts["tsv_en"]
 
-    __table_args__ = tuple(filter(None, (tsv_zh_index, tsv_en_index)))
+    __table_args__ = tuple(fts["indexes"])  # 添加 GIN 索引（仅 PostgreSQL 下有效）
     # print(f"🧪 IS_POSTGRES={settings.is_postgres}, DB={settings.database_url}")
 
-    # Relationships
-    author: Optional["User"] = Relationship(back_populates="articles")
-    comments: List["Comment"] = Relationship(back_populates="article")
-    tags: List["ArticleTag"] = Relationship(back_populates="article")
+    # relationships
+    author: Mapped[Optional["User"]] = relationship(back_populates="articles")
+    comments: Mapped[List["Comment"]] = relationship(back_populates="article")
+    tags: Mapped[List["ArticleTag"]] = relationship(back_populates="article")
 
 
-class ArticleCreate(ArticleBase):
-    pass
-
-
-class ArticleUpdate(SQLModel):
-    title: Optional[str] = None
-    content: Optional[str] = None
-    summary: Optional[str] = None
-    status: Optional[ArticleStatus] = None
-    is_featured: Optional[bool] = None
-    has_latex: Optional[bool] = None
-    latex_content: Optional[str] = None
-
-
-class ArticleResponse(ArticleBase):
-    id: int
-    author_id: int
-    created_at: datetime
-    updated_at: datetime
-    published_at: Optional[datetime] = None 

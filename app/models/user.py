@@ -1,7 +1,9 @@
 from datetime import datetime
 from typing import Optional, List, TYPE_CHECKING
-from sqlmodel import SQLModel, Field, Relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import DateTime, ForeignKey, func
 from enum import Enum
+from app.core.base import BaseModelMixin
 
 if TYPE_CHECKING:
     from .article import Article
@@ -21,64 +23,38 @@ class OAuthProvider(str, Enum):
     GOOGLE = "google"
 
 
-class UserBase(SQLModel):
-    username: str = Field(unique=True, index=True)
-    email: str = Field(unique=True, index=True)
-    full_name: Optional[str] = None
-    role: UserRole = Field(default=UserRole.USER)
-    is_active: bool = Field(default=True)
+class User(BaseModelMixin):
+    __tablename__ = "user"
 
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    username: Mapped[str] = mapped_column(unique=True, index=True)
+    email: Mapped[str] = mapped_column(unique=True, index=True)
+    full_name: Mapped[Optional[str]] = mapped_column(default=None, nullable=True)
+    role: Mapped[UserRole] = mapped_column(default=UserRole.USER)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    hashed_password: Mapped[Optional[str]] = mapped_column(default=None, nullable=True)
 
-class User(UserBase, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    hashed_password: Optional[str] = None  # Optional for OAuth users
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-    
     # OAuth fields
-    oauth_provider: Optional[OAuthProvider] = None
-    oauth_id: Optional[str] = None  # External OAuth ID
-    oauth_username: Optional[str] = None  # Username from OAuth provider
-    avatar_url: Optional[str] = None  # Profile picture URL
-    
-    # Relationships
-    articles: List["Article"] = Relationship(back_populates="author")
-    comments: List["Comment"] = Relationship(back_populates="author")
-    media_files: List["MediaFile"] = Relationship(back_populates="uploader")
-    donations: List["DonationRecord"] = Relationship(back_populates="user")
+    oauth_provider: Mapped[Optional[OAuthProvider]] = mapped_column(default=None, nullable=True)
+    oauth_id: Mapped[Optional[str]] = mapped_column(default=None, nullable=True)
+    oauth_username: Mapped[Optional[str]] = mapped_column(default=None, nullable=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(default=None, nullable=True)
+
+    # relationships
+    articles: Mapped[List["Article"]] = relationship(back_populates="author")
+    comments: Mapped[List["Comment"]] = relationship(back_populates="author")
+    media_files: Mapped[List["MediaFile"]] = relationship(back_populates="uploader")
+    donations: Mapped[List["DonationRecord"]] = relationship(back_populates="user")
 
 
-class UserCreate(UserBase):
-    password: Optional[str] = None  # Optional for OAuth users
-    verification_code: Optional[str] = None  # Email verification code
+class OAuthAccount(BaseModelMixin):
+    __tablename__ = "oauth_account"
 
-
-class UserUpdate(SQLModel):
-    username: Optional[str] = None
-    email: Optional[str] = None
-    full_name: Optional[str] = None
-    password: Optional[str] = None
-    is_active: Optional[bool] = None
-    avatar_url: Optional[str] = None
-
-
-class UserResponse(UserBase):
-    id: int
-    created_at: datetime
-    updated_at: datetime
-    oauth_provider: Optional[OAuthProvider] = None
-    avatar_url: Optional[str] = None
-
-
-class OAuthAccount(SQLModel, table=True):
-    """Separate table for OAuth account bindings"""
-    id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="user.id")
-    provider: OAuthProvider
-    provider_user_id: str = Field(index=True)
-    provider_username: Optional[str] = None
-    access_token: Optional[str] = None
-    refresh_token: Optional[str] = None
-    expires_at: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow) 
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
+    provider: Mapped[OAuthProvider]
+    provider_user_id: Mapped[str] = mapped_column(index=True)
+    provider_username: Mapped[Optional[str]] = mapped_column(default=None, nullable=True)
+    access_token: Mapped[Optional[str]] = mapped_column(default=None, nullable=True)
+    refresh_token: Mapped[Optional[str]] = mapped_column(default=None, nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(default=None, nullable=True)

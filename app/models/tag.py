@@ -1,44 +1,33 @@
 from datetime import datetime
 from typing import Optional, List, TYPE_CHECKING
-from sqlmodel import SQLModel, Field, Relationship
+from pydantic import BaseModel
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import DateTime, ForeignKey, func
+from app.core.base import BaseModelMixin
 
 if TYPE_CHECKING:
     from .article import Article
 
 
-class TagBase(SQLModel):
-    name: str = Field(unique=True, index=True)
-    description: Optional[str] = None
+class TagBase:
+    name: Mapped[str] = mapped_column(unique=True, index=True)
+    description: Mapped[Optional[str]] = mapped_column(default=None, nullable=True)
 
 
-class Tag(TagBase, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    
-    # Relationships
-    article_tags: List["ArticleTag"] = Relationship(back_populates="tag")
+class Tag(TagBase,BaseModelMixin):
+    __tablename__ = "tag"
+    id: Mapped[int] = mapped_column(default=None, primary_key=True)
+    # relationships
+    article_tags: Mapped[List["ArticleTag"]] = relationship(back_populates="tag")
 
 
-class TagCreate(TagBase):
-    pass
-
-
-class TagUpdate(SQLModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-
-
-class TagResponse(TagBase):
-    id: int
-    created_at: datetime
-
-
-class ArticleTag(SQLModel, table=True):
+class ArticleTag(BaseModelMixin):
     """Many-to-many relationship between articles and tags"""
-    id: Optional[int] = Field(default=None, primary_key=True)
-    article_id: int = Field(foreign_key="article.id")
-    tag_id: int = Field(foreign_key="tag.id")
+    __tablename__ = "article_tag"
+    id: Mapped[int] = mapped_column(default=None, primary_key=True)
+    article_id: Mapped[int] = mapped_column(ForeignKey("article.id"))
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"))
     
-    # Relationships
-    article: Optional["Article"] = Relationship(back_populates="tags")
-    tag: Optional["Tag"] = Relationship(back_populates="article_tags") 
+    # relationships
+    article: Mapped[Optional["Article"]] = relationship(back_populates="tags")
+    tag: Mapped[Optional["Tag"]] = relationship(back_populates="article_tags") 

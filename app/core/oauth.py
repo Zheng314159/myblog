@@ -1,5 +1,6 @@
 import httpx
 from typing import Optional, Dict, Any
+from collections.abc import Sequence
 from authlib.integrations.starlette_client import OAuth
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -281,9 +282,9 @@ class OAuthService:
     async def get_user_oauth_accounts(
         db: AsyncSession,
         user_id: int
-    ) -> list[OAuthAccount]:
+    ) -> Sequence[OAuthAccount]:
         """Get all OAuth accounts for a user"""
         result = await db.execute(
             select(OAuthAccount).where(OAuthAccount.user_id == user_id)
         )
-        return result.scalars().all() 
+        return result.scalars().all()

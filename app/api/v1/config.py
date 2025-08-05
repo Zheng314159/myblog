@@ -12,6 +12,9 @@ from fastapi.responses import JSONResponse
 from app.models.system_notification import SystemNotification
 from sqlalchemy.future import select
 
+from app.schemas.system_notification import SystemNotificationOut
+from app.core.base import BaseModelMixin
+
 router = APIRouter(prefix="/config", tags=["config"])
 
 @router.get("/")
@@ -187,14 +190,14 @@ async def get_statistics(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取统计数据失败: {str(e)}")
 
-@router.get("/health")
+@router.get("/health/check")
 async def health_check():
     """健康检查"""
     return {"status": "healthy", "message": "系统运行正常"}
 
 @router.get("/tables", summary="获取所有数据库表名")
 def get_all_tables():
-    table_names = list(SQLModel.metadata.tables.keys())
+    table_names = list(BaseModelMixin.metadata.tables.keys())
     return JSONResponse(content={"tables": table_names})
 
 @router.get("/notifications")
@@ -207,4 +210,4 @@ async def get_notifications(limit: int = Query(5, ge=1, le=20)):
             .limit(limit)
         )
         notifications = result.scalars().all()
-        return {"notifications": [n.dict() for n in notifications]} 
+        return {"notifications": [SystemNotificationOut.model_validate(n) for n in notifications]}

@@ -234,19 +234,6 @@ async def create_article(
     has_latex = False
     latex_content = None
     
-    # 简单的LaTeX检测
-    if article_data.content:
-        latex_patterns = [
-            r'\$[^$]+\$',  # 行内公式
-            r'\$\$[^$]+\$\$',  # 块级公式
-            r'\\\([^)]+\\\)',  # 行内公式
-            r'\\\[[^\]]+\\\]',  # 块级公式
-        ]
-        
-        for pattern in latex_patterns:
-            if re.search(pattern, article_data.content):
-                has_latex = True
-                break
     
     # 创建文章（直接使用原始内容，不进行LaTeX处理）
     db_article = Article(
@@ -452,21 +439,6 @@ async def update_article(
     # 只提取 Article 表字段
     update_data = article_data.dict(exclude_unset=True, exclude={"tags"})
     
-    if article_data.content is not None:
-        # 处理LaTeX内容
-        has_latex = False
-        latex_content = None
-        processed_content = article_data.content
-        
-        if article_data.has_latex and article_data.latex_content:
-            has_latex = True
-            latex_content = article_data.latex_content
-            # 处理LaTeX内容
-            processed_content, latex_blocks = latex_renderer.process_content(article_data.content)
-        
-        update_data['content'] = processed_content
-        update_data['has_latex'] = has_latex
-        update_data['latex_content'] = latex_content
     
     # 更新文章
     await db.execute(
@@ -690,7 +662,7 @@ async def get_pdf(filename: str, preview: bool = Query(True)):
 
 
 @router.get("/media/list", response_model=List[dict])
-async def list_media_files(uploader_id: int = Query(None), db: Annotated[AsyncSession, Depends(get_db)] = None):
+async def list_media_files(db: Annotated[AsyncSession, Depends(get_db)],uploader_id: int = Query(None)):
     from app.models.media import MediaFile
     from sqlalchemy import select
     query = select(MediaFile).options(selectinload(MediaFile.uploader))

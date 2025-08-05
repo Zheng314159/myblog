@@ -181,11 +181,11 @@ async def get_search_stats(db: Annotated[AsyncSession, Depends(get_db)]):
     """获取搜索统计信息"""
     # 获取 FTS5 表统计信息
     result = await db.execute(text("SELECT COUNT(*) FROM articles_fts"))
-    fts_count = result.scalar()
+    fts_count = result.scalar() or 0
     
     # 获取文章总数 - 使用大写的PUBLISHED状态
     result = await db.execute(text("SELECT COUNT(*) FROM article WHERE status = 'PUBLISHED'"))
-    article_count = result.scalar()
+    article_count = result.scalar() or 0
     
     return {
         "fts_indexed_articles": fts_count,

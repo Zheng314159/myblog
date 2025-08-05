@@ -45,7 +45,7 @@ class DonationConfigResponse(BaseModel):
         from_attributes = True  # Pydantic v2 替代 orm_mode
 
 
-class DonationCreate(BaseModel):
+class DonationRecordCreate(BaseModel):
     donor_name: str
     donor_email: Optional[str] = None
     donor_message: Optional[str] = None
@@ -56,7 +56,7 @@ class DonationCreate(BaseModel):
     goal_id: Optional[int] = None
 
 
-class DonationResponse(BaseModel):
+class DonationRecordOut(BaseModel):
     id: int
     donor_name: str
     donor_email: Optional[str] = None
@@ -73,15 +73,6 @@ class DonationResponse(BaseModel):
     updated_at: datetime
     paid_at: Optional[datetime] = None
     
-    alipay_form_html: Optional[str] = None
-    alipay_qr: Optional[str] = None
-    wechat_qr: Optional[str] = None
-    wechat_prepay_id: Optional[str] = None
-    wechat_trade_type: Optional[str] = None
-    wechat_error: Optional[str] = None
-    paypal_url: Optional[str] = None
-    paypal_order_id: Optional[str] = None
-    paypal_error: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -104,7 +104,7 @@ async def get_current_user(
         if payload is None:
             raise credentials_exception
         
-        username: str = payload.get("sub")
+        username = payload.get("sub")
         if username is None:
             raise credentials_exception
         
@@ -130,7 +130,7 @@ async def get_current_user_ws(token: str) -> Optional[User]:
         payload = verify_token(token)
         if payload is None:
             return None
-        username: str = payload.get("sub")
+        username = payload.get("sub")
         if username is None:
             return None
         token_type = payload.get("type")

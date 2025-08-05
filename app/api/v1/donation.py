@@ -1,8 +1,8 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from decimal import Decimal
 import json
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status, BackgroundTasks, Request
 from sqlmodel import select, func
 from sqlalchemy import and_
 from alipay import AliPay
@@ -15,7 +15,7 @@ from app.models.donation import (
     DonationStatus, PaymentMethod
 )
 from app.schemas.donation import (
-    DonationConfigUpdate, DonationCreate, DonationResponse,DonationConfigResponse,
+    DonationConfigUpdate, DonationRecordCreate, DonationRecordOut,DonationConfigResponse,
     DonationGoalCreate, DonationGoalUpdate, DonationGoalResponse,
     DonationStats
 
@@ -67,7 +67,7 @@ async def update_donation_config(
         for field, value in update_data.items():
             setattr(config, field, value)
         
-        config.updated_at = datetime.utcnow()
+        config.updated_at = datetime.now(timezone.utc)
         await session.commit()
         await session.refresh(config)
         
@@ -76,9 +76,9 @@ async def update_donation_config(
 
 # ==================== 捐赠记录管理 ====================
 
-@router.post("/create", response_model=DonationResponse)
+@router.post("/create", response_model=DonationRecordOut)
 async def create_donation(
-    donation_data: DonationCreate,
+    donation_data: DonationRecordCreate,
     background_tasks: BackgroundTasks,
     request: Request
 ):
@@ -122,7 +122,8 @@ async def create_donation(
         await session.refresh(donation)
         
         # 统一定义 donation_dict，避免 UnboundLocalError
-        donation_dict = donation.dict() if hasattr(donation, 'dict') else dict(donation)
+        donation_dict = DonationRecordOut.model_validate(donation).model_dump()
+
         
         # 根据支付方式生成支付信息
         if donation_data.payment_method == PaymentMethod.ALIPAY:
@@ -205,7 +206,7 @@ async def create_donation(
         return donation_dict
 
 
-@router.get("/records", response_model=List[DonationResponse])
+@router.get("/records", response_model=List[DonationRecordOut])
 async def get_donation_records(
     skip: int = 0,
     limit: int = 20,
@@ -228,7 +229,7 @@ async def get_donation_records(
         return donations
 
 
-@router.get("/records/my", response_model=List[DonationResponse])
+@router.get("/records/my", response_model=List[DonationRecordOut])
 async def get_my_donation_records(
     current_user: User = Depends(get_current_user)
 ):
@@ -258,7 +259,7 @@ async def update_donation_status(
         
         if not donation:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=404,
                 detail="捐赠记录不存在"
             )
         
@@ -268,7 +269,7 @@ async def update_donation_status(
             donation.transaction_id = transaction_id
         
         if status == DonationStatus.SUCCESS:
-            donation.paid_at = datetime.utcnow()
+            donation.paid_at = datetime.now(timezone.utc)
             
             # 发送确认邮件
             if donation.donor_email and settings.email_enabled:
@@ -293,9 +294,7 @@ async def update_donation_status(
             # 自动累加到最早未完成目标
             goal_result = await session.execute(
                 select(DonationGoal)
-                .where(DonationGoal.is_completed == False)
-                .order_by(DonationGoal.start_date.asc(), DonationGoal.id.asc())
-                .limit(1)
+                .where(DonationGoal.is_completed == False and DonationGoal.id==donation.goal_id)
             )
             goal = goal_result.scalar_one_or_none()
             if goal:
@@ -303,7 +302,7 @@ async def update_donation_status(
                 if goal.current_amount >= goal.target_amount:
                     goal.is_completed = True
         
-        donation.updated_at = datetime.utcnow()
+        donation.updated_at = datetime.now(timezone.utc)
         await session.commit()
         await session.refresh(donation)
         
@@ -321,13 +320,11 @@ async def create_donation_goal(
     async with async_session() as session:
         goal_dict = goal_data.dict()
         if not goal_dict.get("start_date"):
-            goal_dict["start_date"] = datetime.utcnow()
+            goal_dict["start_date"] = datetime.now(timezone.utc)
         goal = DonationGoal(**goal_dict)
         session.add(goal)
         await session.commit()
         await session.refresh(goal)
-        # 计算进度百分比
-        goal.progress_percentage = float(goal.current_amount / goal.target_amount * 100)
         return goal
 
 
@@ -387,12 +384,10 @@ async def update_donation_goal(
         for field, value in update_data.items():
             setattr(goal, field, value)
         
-        goal.updated_at = datetime.utcnow()
+        goal.updated_at = datetime.now(timezone.utc)
         await session.commit()
         await session.refresh(goal)
         
-        # 计算进度百分比
-        goal.progress_percentage = float(goal.current_amount / goal.target_amount * 100)
         
         return goal
 
@@ -434,10 +429,10 @@ async def get_donation_stats(
                 func.sum(DonationRecord.amount).label("total_amount")
             ).where(DonationRecord.payment_status == DonationStatus.SUCCESS)
         )
-        total_stats = total_result.first()
+        total_stats = total_result.mappings().first()
         
         # 本月捐赠统计
-        start_of_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        start_of_month = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         monthly_result = await session.execute(
             select(
                 func.count(DonationRecord.id).label("monthly_donations"),
@@ -449,7 +444,7 @@ async def get_donation_stats(
                 )
             )
         )
-        monthly_stats = monthly_result.first()
+        monthly_stats = monthly_result.mappings().first()
         
         # 目标统计
         goals_result = await session.execute(
@@ -458,16 +453,16 @@ async def get_donation_stats(
                 func.sum(func.case((DonationGoal.is_completed == True, 1), else_=0)).label("completed_goals")
             ).where(DonationGoal.is_active == True)
         )
-        goals_stats = goals_result.first()
+        goals_stats = goals_result.mappings().first()
         
         return DonationStats(
-            total_donations=total_stats.total_donations or 0,
-            total_amount=total_stats.total_amount or Decimal('0.00'),
+            total_donations=(total_stats or {}).get("total_donations") or 0,
+            total_amount=(total_stats or {}).get("total_amount") or Decimal('0.00'),
             currency="CNY",
-            monthly_donations=monthly_stats.monthly_donations or 0,
-            monthly_amount=monthly_stats.monthly_amount or Decimal('0.00'),
-            active_goals=goals_stats.total_goals or 0,
-            completed_goals=goals_stats.completed_goals or 0
+            monthly_donations=(monthly_stats or {}).get("monthly_donations") or 0,
+            monthly_amount=(monthly_stats or {}).get("monthly_amount") or Decimal('0.00'),
+            active_goals=(goals_stats or {}).get("total_goals") or 0,
+            completed_goals=(goals_stats or {}).get("completed_goals") or 0
         )
 
 
@@ -482,7 +477,7 @@ async def get_public_donation_stats():
                 func.sum(DonationRecord.amount).label("total_amount")
             ).where(DonationRecord.payment_status == DonationStatus.SUCCESS)
         )
-        total_stats = total_result.first()
+        total_stats = total_result.mappings().first()
         
         # 活跃目标数量
         goals_result = await session.execute(
@@ -491,8 +486,8 @@ async def get_public_donation_stats():
         active_goals = goals_result.scalar() or 0
         
         return {
-            "total_donations": total_stats.total_donations or 0,
-            "total_amount": float(total_stats.total_amount or 0),
+            "total_donations": (total_stats or {}).get("total_donations") or 0,
+            "total_amount": float((total_stats or {}).get("total_amount") or 0),
             "currency": "CNY",
             "active_goals": active_goals
         }
@@ -531,8 +526,8 @@ async def wechat_callback(request: Request):
                     if donation:
                         donation.payment_status = DonationStatus.SUCCESS
                         donation.transaction_id = result.get("transaction_id")
-                        donation.paid_at = datetime.utcnow()
-                        donation.updated_at = datetime.utcnow()
+                        donation.paid_at = datetime.now(timezone.utc)
+                        donation.updated_at = datetime.now(timezone.utc)
                         
                         # 优先累加到 donation.goal_id 指定目标
                         goal = None
@@ -610,8 +605,8 @@ async def paypal_callback(request: Request):
                             if donation:
                                 donation.payment_status = DonationStatus.SUCCESS
                                 donation.transaction_id = capture_result.get("capture_id")
-                                donation.paid_at = datetime.utcnow()
-                                donation.updated_at = datetime.utcnow()
+                                donation.paid_at = datetime.now(timezone.utc)
+                                donation.updated_at = datetime.now(timezone.utc)
                                 
                                 # 优先累加到 donation.goal_id 指定目标
                                 goal = None
@@ -680,7 +675,7 @@ async def send_donation_confirmation_email(
         <p>祝您生活愉快！</p>
         """
         
-        await email_service.send_email(email, subject, content)
+        email_service.send_email(email, subject, content)
         
     except Exception as e:
         print(f"发送捐赠确认邮件失败: {e}")
@@ -702,8 +697,8 @@ async def send_donation_notification_email(
         {f'<p><strong>留言：</strong>{donor_message}</p>' if donor_message else ''}
         <p>感谢您的关注！</p>
         """
-        
-        await email_service.send_email(settings.notification_email, subject, content)
+        assert settings.notification_email is not None, "请配置 notification_email"
+        email_service.send_email(settings.notification_email, subject, content)
         
     except Exception as e:
         print(f"发送捐赠通知邮件失败: {e}")
@@ -738,7 +733,13 @@ async def alipay_notify(request: Request):
             record = result.scalar_one_or_none()
             if record and record.payment_status != "PAID":
                 record.payment_status = "PAID"
-                record.paid_at = data.get("gmt_payment")
+                gmt_payment_raw = data.get("gmt_payment")
+                if gmt_payment_raw:
+                    if isinstance(gmt_payment_raw, UploadFile):
+                        gmt_payment_str = (await gmt_payment_raw.read()).decode("utf-8")
+                    else:
+                        gmt_payment_str = str(gmt_payment_raw)
+                    record.paid_at = datetime.strptime(gmt_payment_str, "%Y-%m-%d %H:%M:%S")
                 await session.commit()
         return "success"
     return "fail"

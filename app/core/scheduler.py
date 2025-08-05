@@ -149,6 +149,7 @@ class TaskScheduler:
             # 确保已连接
             if not redis_manager.redis:
                 await redis_manager.connect()
+            assert redis_manager.redis is not None, "Redis连接未建立"
             # 获取所有黑名单键
             blacklist_keys = await redis_manager.redis.keys("blacklist:*")
             if not blacklist_keys:
@@ -255,7 +256,8 @@ class TaskScheduler:
                 }
                 if not redis_manager.redis:
                     await redis_manager.connect()
-                await redis_manager.redis.hset("system:statistics", mapping=stats)
+                assert redis_manager.redis is not None, "Redis连接未建立"
+                redis_manager.redis.hset("system:statistics", mapping=stats)
                 await redis_manager.redis.expire("system:statistics", 3600)  # 1小时过期
                 logger.info(f"统计信息生成完成: {stats}")
         except Exception as e:
@@ -290,7 +292,8 @@ class TaskScheduler:
                 # 记录发送日志
                 if not redis_manager.redis:
                     await redis_manager.connect()
-                await redis_manager.redis.hset(
+                assert redis_manager.redis is not None, "Redis连接未建立"
+                redis_manager.redis.hset(
                     "system:email_logs", 
                     f"statistics_{datetime.now().strftime('%Y%m%d_%H%M')}",
                     f"发送成功 - {recipient_email} - {datetime.now().isoformat()}"
@@ -300,7 +303,8 @@ class TaskScheduler:
                 # 记录失败日志
                 if not redis_manager.redis:
                     await redis_manager.connect()
-                await redis_manager.redis.hset(
+                assert redis_manager.redis is not None, "Redis连接未建立"
+                redis_manager.redis.hset(
                     "system:email_logs", 
                     f"statistics_{datetime.now().strftime('%Y%m%d_%H%M')}",
                     f"发送失败 - {recipient_email} - {datetime.now().isoformat()}"
@@ -368,7 +372,19 @@ class TaskScheduler:
                 
         except Exception as e:
             logger.error(f"获取统计数据失败: {e}")
-            return None
+            return {
+                "total_users": 0,
+                "active_users": 0,
+                "total_articles": 0,
+                "published_articles": 0,
+                "total_comments": 0,
+                "approved_comments": 0,
+                "total_tags": 0,
+                "today_users": 0,
+                "today_articles": 0,
+                "today_comments": 0,
+                "updated_at": datetime.now().isoformat()
+            }
     
     async def _daily_maintenance(self):
         """每日数据维护"""
@@ -393,6 +409,7 @@ class TaskScheduler:
         """清理临时数据"""
         try:
             # 清理过期的会话数据
+            assert redis_manager.redis is not None, "Redis连接未建立"
             expired_sessions = await redis_manager.redis.keys("session:*")
             if expired_sessions:
                 await redis_manager.redis.delete(*expired_sessions)
@@ -418,8 +435,8 @@ class TaskScheduler:
                 "backup_size": "2.5MB",
                 "status": "success"
             }
-            
-            await redis_manager.redis.hset("system:backup", mapping=backup_status)
+            assert redis_manager.redis is not None, "Redis连接未建立"
+            redis_manager.redis.hset("system:backup", mapping=backup_status)
             logger.info("数据备份状态已更新")
             
         except Exception as e:
@@ -437,8 +454,8 @@ class TaskScheduler:
                 "search": "healthy",
                 "checked_at": datetime.now().isoformat()
             }
-            
-            await redis_manager.redis.hset("system:health", mapping=health_status)
+            assert redis_manager.redis is not None, "Redis连接未建立"
+            redis_manager.redis.hset("system:health", mapping=health_status)
             logger.info("系统健康检查完成")
             
         except Exception as e:

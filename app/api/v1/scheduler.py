@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_current_user
-from app.core.scheduler import get_scheduler_status, start_scheduler, stop_scheduler
+from app.core.apscheduler.registry import get_scheduler_status, start_scheduler, stop_scheduler
 from app.models.user import UserRole
 
 router = APIRouter(prefix="/scheduler", tags=["scheduler"])

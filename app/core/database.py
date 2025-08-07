@@ -1,9 +1,9 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlmodel import SQLModel
 from app.core.config import settings
 from app.core.search import FTSSearch
+from app.core.base import BaseModelMixin
 
 
 
@@ -31,7 +31,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def create_db_and_tables():
     """创建数据库表"""
     async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
+        await conn.run_sync(BaseModelMixin.metadata.create_all)
     
     # 创建搜索索引
     async with async_session() as session:

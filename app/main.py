@@ -1,6 +1,12 @@
 # 在所有导入前加载dotenv
+import json
 import traceback
+import uuid
 from dotenv import load_dotenv
+from wtforms.fields import SelectField
+
+from app.models.scheduled_task import ScheduledTask
+from app.utils.decor import action_with_pks
 load_dotenv()
 
 # 设置代理环境变量（如果.env中有配置）
@@ -25,12 +31,13 @@ from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.requests import Request as StarletteRequest
 
+from app.core.apscheduler.base import scheduler
+from app.core.apscheduler.registry import start_scheduler, stop_scheduler
 from app.core.config import settings
 from app.core.database import engine, create_db_and_tables, async_session
 from app.core.redis import redis_manager
 from app.core.middleware import setup_middleware
 from app.core.exceptions import BlogException
-from app.core.scheduler import start_scheduler, stop_scheduler
 from app.core.oauth import oauth
 from app.api.v1.auth import router as auth_router
 from app.api.v1.article import router as article_router
@@ -41,7 +48,7 @@ from app.api.v1.scheduler import router as scheduler_router
 from app.api.v1.oauth import router as oauth_router
 from app.api.v1.config import router as config_router
 from app.api.v1.donation import router as donation_router
-from sqladmin import Admin, ModelView
+from sqladmin import Admin, ModelView, action
 from sqladmin.authentication import AuthenticationBackend
 from starlette.responses import RedirectResponse
 from sqlalchemy import select, delete
@@ -54,7 +61,11 @@ from app.models.user import UserRole
 from app.models.media import MediaFile
 from app.models.system_notification import SystemNotification
 from app.models.donation import DonationConfig, DonationRecord, DonationGoal
+from app.core.apscheduler.jobs import task_func_map
 import sqladmin
+import logging
+logger = logging.getLogger(__name__)
+
 ADMIN_PATH = "/admin"  # 后台路径恢复为/admin，保证SQLAdmin静态资源和JS事件正常
 
 
@@ -69,6 +80,7 @@ async def lifespan(app: FastAPI):
     print("Connected to Redis")
     # 简单的健康检查
     try:
+        assert redis_manager.redis is not None, "Redis client is not initialized"
         pong = await redis_manager.redis.ping()
         print(f"Redis ping response: {pong}")  # 应该打印 True
     except Exception as e:
@@ -327,6 +339,147 @@ async def lifespan(app: FastAPI):
         name = "捐赠目标"
         name_plural = "捐赠目标"
         form_include_pk = False
+    class ScheduledTaskAdmin(ModelView, model=ScheduledTask):
+            # 显示列表
+        column_list = [
+            "id",
+            "name",
+            "func_name",
+            "trigger",
+            "is_enabled",
+            "last_run_time",
+            "next_run_time"
+        ]
+
+        form_overrides = {
+            "trigger": SelectField,
+            "func_name": SelectField,
+        }
+        form_args = {
+            "func_name": {
+                "label": "任务函数",
+                "choices": [(name, name) for name in task_func_map.keys()],
+                "description": "请选择要执行的函数"
+            },
+            "trigger": {
+                "label": "触发器类型",
+                "choices": [
+                    ("interval", "interval"),
+                    ("cron", "cron"),
+                    ("date", "date")
+                ],
+                "description": "选择任务的触发器类型"
+            },
+            "trigger_args": {
+                "label": "触发器配置",
+                "description": (
+                    "JSON配置，必填！根据trigger类型填写对应参数。\n"
+                    "示例:\n"
+                    "- interval: {\"seconds\":10}\n"
+                    "- cron: {\"minute\":\"0\", \"hour\":\"12\"}\n"
+                    "- date: {\"run_date\":\"2025-08-07 12:00:00\"}"
+                ),
+                "default": "{\"seconds\":10}"
+            },
+            "args": {
+                "description": "位置参数 JSON数组，例如 [\"param1\", 2]",
+                "default": "[]"
+            },
+            "kwargs": {
+                "description": "关键字参数 JSON对象，例如 {\"key\":\"value\"}",
+                "default": "{}"
+            }
+        }
+        form_columns = ["name", "func_name", "trigger", "args", "kwargs", "trigger_args", "is_enabled"]
+        can_create = True
+        can_edit = True
+        can_delete = True
+        can_view_details = True
+        name = "定时任务管理"
+        name_plural = "定时任务"
+        form_include_pk = False
+
+        
+        # JSON 字段在后台自动转字符串，重写验证函数让它能输入JSON格式字符串
+        async def before_create(self, request: Request, data: dict) -> dict:
+            data["id"] = str(uuid.uuid4())
+            for field in ("args", "kwargs", "trigger_args"):
+                if field in data and isinstance(data[field], str):
+                    try:
+                        data[field] = json.loads(data[field])
+                    except Exception as e:
+                        logger.warning(f"字段 {field} JSON解析失败，值：{data[field]}，错误：{e}")
+                        data[field] = [] if field in ("args", "kwargs") else {}
+            return data
+        
+        async def before_update(self, request: Request, pk: str, data: dict) -> dict:
+            for field in ("args", "kwargs", "trigger_args"):
+                if field in data and isinstance(data[field], str):
+                    try:
+                        data[field] = json.loads(data[field])
+                    except Exception as e:
+                        logger.warning(f"字段 {field} JSON解析失败，值：{data[field]}，错误：{e}")
+                        data[field] = [] if field in ("args", "kwargs") else {}
+            return data
+        
+        async def after_create(self, request: Request, obj: ScheduledTask):
+            # 新增后同步到调度器
+            await scheduler.add_job_from_db(obj)
+        
+        async def after_update(self, request: Request, obj: ScheduledTask):
+            # 更新后同步调度器（先删除旧任务，再添加）
+            await scheduler.remove_job(obj.id)
+            if obj.is_enabled:
+                await scheduler.add_job_from_db(obj)
+        
+        async def after_delete(self, request: Request, obj: ScheduledTask):
+            # 删除后从调度器删除任务
+            await scheduler.remove_job(obj.id)
+
+        @action_with_pks(name="pause_job", label="暂停任务", confirmation_message="确定要暂停选中任务吗？")
+        async def pause_job(self, request: Request, item: ScheduledTask):
+            await scheduler.pause_job(item.id)
+            return f"任务 {item.name} 已暂停"
+
+
+        @action_with_pks(name="resume_job", label="恢复任务", confirmation_message="确定要恢复选中任务吗？")
+        async def resume_job(self, request: Request, item: ScheduledTask):
+            await scheduler.resume_job(item.id)
+            return f"任务 {item.name} 已恢复"
+
+
+        @action_with_pks(name="remove_job", label="从调度器移除", confirmation_message="不会删除数据库中的任务，仅从调度器中移除，确认？")
+        async def remove_job(self, request: Request, item: ScheduledTask):
+            await scheduler.remove_job(item.id)
+            return f"任务 {item.name} 已从调度器移除"
+
+
+        @action_with_pks(name="add_job", label="重新添加到调度器", confirmation_message="是否将选中任务重新添加到调度器？")
+        async def add_job(self, request: Request, item: ScheduledTask):
+            await scheduler.add_job_from_db(item)
+            return f"任务 {item.name} 已重新添加"
+
+
+        @action_with_pks(name="run_once", label="立即执行一次", confirmation_message="任务将立即被调度执行一次，确认继续？")
+        async def run_once(self, request: Request, item: ScheduledTask):
+            func = scheduler.task_func_map.get(item.func_name)
+            if not func:
+                raise Exception(f"找不到函数: {item.func_name}")
+            if asyncio.iscoroutinefunction(func):
+                await func(*item.args or [], **item.kwargs or {})
+            else:
+                func(*item.args or [], **item.kwargs or {})
+            return f"任务 {item.name} 已执行"
+
+        actions = [
+            pause_job,
+            resume_job,
+            remove_job,
+            add_job,
+            run_once,
+        ]
+        
+            
 
     admin.add_view(UserAdmin)
     admin.add_view(OAuthAccountAdmin)
@@ -339,6 +492,7 @@ async def lifespan(app: FastAPI):
     admin.add_view(DonationConfigAdmin)
     admin.add_view(DonationRecordAdmin)
     admin.add_view(DonationGoalAdmin)
+    admin.add_view(ScheduledTaskAdmin)
     
     yield
     
@@ -354,6 +508,23 @@ async def lifespan(app: FastAPI):
     print("Disconnected from Redis")
 
 
+class HTTPSURLMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        url = request.url
+        if (
+            url.scheme == "http"
+            and request.headers.get("x-forwarded-proto") == "https"
+            and url.path.startswith(ADMIN_PATH)
+        ):
+            request.state.url = url.replace(scheme="https")
+            request.state.base_url = request.state.url.replace(path="/")
+        else:
+            request.state.url = url
+            request.state.base_url = request.base_url
+
+        response = await call_next(request)
+        return response
+
 # Create FastAPI app
 app = FastAPI(
     title=settings.app_name,
@@ -362,7 +533,7 @@ app = FastAPI(
     debug=settings.debug,
     lifespan=lifespan
 )
-
+app.add_middleware(HTTPSURLMiddleware)
 # 挂载 uploads 静态资源目录
 import os
 app.mount("/uploads", StaticFiles(directory=os.path.abspath("uploads")), name="uploads")
@@ -591,28 +762,7 @@ class NoCacheAdminMiddleware(BaseHTTPMiddleware):
                         print(f"Error processing response: {e}")
         return response
 
-old_url = StarletteRequest.url
 
-@property
-def url_with_https(self):
-    url = old_url.fget(self)
-    # 只对 /admin 路由生效
-    if url.scheme == "http" and self.headers.get("x-forwarded-proto") == "https" and url.path.startswith(ADMIN_PATH):
-        return url.replace(scheme="https")
-    return url
-
-StarletteRequest.url = url_with_https
-
-old_base_url = StarletteRequest.base_url
-
-@property
-def base_url_with_https(self):
-    url = old_base_url.fget(self)
-    if url.scheme == "http" and self.headers.get("x-forwarded-proto") == "https" and url.path.startswith(ADMIN_PATH):
-        return url.replace(scheme="https")
-    return url
-
-StarletteRequest.base_url = base_url_with_https
 # 打印请求协议的调试中间件
 class PrintSchemeMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):

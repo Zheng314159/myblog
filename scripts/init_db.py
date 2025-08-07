@@ -8,10 +8,10 @@ from urllib.parse import urlparse
 import psycopg2
 import asyncio
 from dotenv import load_dotenv
-from sqlmodel import SQLModel
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Connection
+from app.core.base import BaseModelMixin
 
 # 👇 把项目根目录添加到 sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -79,10 +79,11 @@ if not is_sqlite:
 async def create_pg_tables():
     try:
         print("📦 正在使用 SQLModel 创建表结构（如未使用 Alembic，可启用）...")
+        assert database_url is not None
         engine = create_async_engine(database_url, echo=False)
         async with engine.begin() as conn:
-            await conn.run_sync(SQLModel.metadata.drop_all)
-            await conn.run_sync(SQLModel.metadata.create_all)
+            await conn.run_sync(BaseModelMixin.metadata.drop_all)
+            await conn.run_sync(BaseModelMixin.metadata.create_all)
         print("✅ SQLModel 表结构删除并重建完成")
     except Exception as e:
         print("❌ SQLModel 表结构创建失败：", e)
@@ -90,6 +91,7 @@ async def create_pg_tables():
 
 # ==== 打印表结构信息 ====
 async def show_tables():
+    assert database_url is not None 
     engine = create_async_engine(database_url, echo=False)
     async with engine.begin() as conn:
         result = await conn.execute(text(
@@ -99,6 +101,7 @@ async def show_tables():
         print(f"📂 当前数据库表：{tables}")
 
 async def print_table_schemas():
+    assert database_url is not None
     engine = create_async_engine(database_url, echo=False)
     async with engine.connect() as conn:
         def inspect_tables(sync_conn: Connection):

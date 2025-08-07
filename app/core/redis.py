@@ -43,6 +43,10 @@ class RedisManager:
         if not self.redis:
             raise RuntimeError("Redis not connected")
         return await self.redis.exists(key) > 0
+    async def is_blacklisted(self, token: str) -> bool:
+        if not self.redis:
+            await self.connect()
+        return await self.exists(f"blacklist:{token}")
 
 
 redis_manager = RedisManager() 

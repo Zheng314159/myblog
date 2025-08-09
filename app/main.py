@@ -1,12 +1,14 @@
 # 在所有导入前加载dotenv
 import json
+from pathlib import Path
 import traceback
 import uuid
 from dotenv import load_dotenv
+from fastapi.templating import Jinja2Templates
 from wtforms.fields import SelectField
 
 from app.models.scheduled_task import ScheduledTask
-from app.utils.decor import action_with_pks
+from app.utils.decor_test import action_with_pks
 load_dotenv()
 
 # 设置代理环境变量（如果.env中有配置）
@@ -21,15 +23,12 @@ if os.getenv('NO_PROXY') is not None:
 import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
-from sqlmodel import SQLModel
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
-from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
-from starlette.requests import Request as StarletteRequest
 
 from app.core.apscheduler.base import scheduler
 from app.core.apscheduler.registry import start_scheduler, stop_scheduler
@@ -62,12 +61,11 @@ from app.models.media import MediaFile
 from app.models.system_notification import SystemNotification
 from app.models.donation import DonationConfig, DonationRecord, DonationGoal
 from app.core.apscheduler.jobs import task_func_map
-import sqladmin
 import logging
 logger = logging.getLogger(__name__)
 
 ADMIN_PATH = "/admin"  # 后台路径恢复为/admin，保证SQLAdmin静态资源和JS事件正常
-
+BASE_DIR = Path(__file__).resolve().parent
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -97,6 +95,7 @@ async def lifespan(app: FastAPI):
     await start_scheduler()
     print("Scheduler started")
     
+    templates = Jinja2Templates(directory="app/templates")
     # Create management backend
     admin = Admin(
         app, 
@@ -105,6 +104,7 @@ async def lifespan(app: FastAPI):
         base_url=ADMIN_PATH,
         title="博客管理系统",
         logo_url="https://preview.tabler.io/static/logo-white.svg",
+        templates_dir= str(BASE_DIR / "templates")
         # scheme="https"  # 强制所有链接为 https
     )
 
@@ -545,8 +545,16 @@ app.mount("/uploads", StaticFiles(directory=os.path.abspath("uploads")), name="u
 app.mount("/admin/statics", StaticFiles(directory="app/static/sqladmin"), name="sqladmin-static")
 
 # Setup middleware
-setup_middleware(app)  # 恢复中间件
 
+@app.middleware("http")
+async def flash_message_middleware(request: Request, call_next):
+    # 从 session 取出一次性消息
+    flash_messages = request.session.pop("flash_messages", None)
+    if flash_messages:
+        request.state.flash_messages = flash_messages
+    response = await call_next(request)
+    return response
+setup_middleware(app)  # 恢复中间件
 
 # Exception handlers
 @app.exception_handler(BlogException)
@@ -636,7 +644,36 @@ async def health_check():
         "status": "healthy",
         "message": "Service is running"
     }
+# 初始化模板目录（假设你的 templates 目录和 main.py 同级）
+templates = Jinja2Templates(directory="app/templates")
+@app.get("/admin/somepage")
+async def admin_page(request: Request):
+    flash_messages = request.session.pop("flash_messages", None)
+    return templates.TemplateResponse(
+        "partials/list.html",
+        {
+            "request": request,
+            "flash_messages": flash_messages
+        }
+    )
+@app.get("/set-flash")
+async def set_flash(request: Request):
+    # 往 session 里放一次性提示
+    request.session["flash"] = ["✅ 操作成功！", "❌ 有一条失败了"]
+    return HTMLResponse("Flash 已设置，<a href='/show'>去看看</a>")
 
+
+@app.get("/show", response_class=HTMLResponse)
+async def show_page(request: Request):
+    # 读取并移除 flash
+    flash_messages = request.session.pop("flash", None)
+    return templates.TemplateResponse(
+        "partials/list.html",  # 你的模板路径
+        {
+            "request": request,
+            "flash_messages": flash_messages
+        }
+    )
 
 class AdminAuth(AuthenticationBackend):
     async def authenticate(self, request: Request):
@@ -672,106 +709,7 @@ class AdminAuth(AuthenticationBackend):
     async def logout(self, request: Request) -> None:
         request.session.pop("user_id", None)
 
-class CSPMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        response: Response = await call_next(request)
 
-        if request.url.path.startswith(ADMIN_PATH):
-            response.headers["Content-Security-Policy"] = (
-                "default-src 'self'; "
-                "style-src 'self'; "
-                "script-src 'self'; "
-                "img-src 'self' blob:; "
-                "font-src 'self'; "
-                "connect-src 'self'; "
-                "form-action 'self' http://localhost http://127.0.0.1; "
-                "frame-ancestors 'none'; "
-                "object-src 'none'; "
-                "base-uri 'self'; "
-                "media-src 'none'; "
-                "frame-src 'none'; "
-
-            )
-
-        return response
-
-class NoCacheAdminMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        response = await call_next(request)
-        # 允许登录页面被缓存，其他管理后台页面不缓存
-        if request.url.path.startswith(ADMIN_PATH) and not request.url.path.endswith('/login'):
-            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-            response.headers["Pragma"] = "no-cache"
-            response.headers["Expires"] = "0"
-            
-            # 如果是HTML响应，添加JavaScript错误处理
-            if "text/html" in response.headers.get("content-type", ""):
-                if hasattr(response, 'body'):
-                    try:
-                        content = response.body.decode('utf-8')
-                        # 简化的JavaScript错误处理
-                        error_handler = """
-                        <script>
-                        // 立即阻止所有null元素错误
-                        (function() {
-                            // 重写console.error来隐藏错误
-                            var originalError = console.error;
-                            console.error = function() {
-                                var args = Array.prototype.slice.call(arguments);
-                                var message = args.join(' ');
-                                if (message.includes('Cannot read properties of null')) {
-                                    console.warn('Suppressed null element error:', message);
-                                    return;
-                                }
-                                return originalError.apply(console, args);
-                            };
-                            
-                            // 全局错误处理
-                            window.addEventListener('error', function(e) {
-                                if (e.message && e.message.includes('Cannot read properties of null')) {
-                                    console.warn('Blocked null element error:', e.message);
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    return false;
-                                }
-                            });
-                            
-                            // 处理Bootstrap特定的错误
-                            if (typeof $ !== 'undefined') {
-                                $(document).ready(function() {
-                                    // 延迟处理，确保DOM完全加载
-                                    setTimeout(function() {
-                                        // 安全地处理所有表单元素
-                                        $(document).on('change click', 'input, select, textarea', function(e) {
-                                            if (!this) {
-                                                console.warn('Preventing event on null element');
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                return false;
-                                            }
-                                        });
-                                    }, 100);
-                                });
-                            }
-                        })();
-                        </script>
-                        """
-                        content = content.replace('</head>', error_handler + '</head>')
-                        response.body = content.encode('utf-8')
-                    except Exception as e:
-                        print(f"Error processing response: {e}")
-        return response
-
-
-# 打印请求协议的调试中间件
-class PrintSchemeMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        print(f"[DEBUG] {request.url.path} scheme: {request.url.scheme}, x-forwarded-proto: {request.headers.get('x-forwarded-proto')}")
-        return await call_next(request)
-
-# app.add_middleware(PrintSchemeMiddleware)
-app.add_middleware(CSPMiddleware)
-app.add_middleware(NoCacheAdminMiddleware)
 
 
 if __name__ == "__main__":

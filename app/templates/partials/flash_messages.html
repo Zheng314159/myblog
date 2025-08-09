@@ -1,0 +1,50 @@
+{% if request.state.flash_messages %}
+    <div id="flash-messages" style="margin-bottom: 15px;">
+        {% for msg in request.state.flash_messages %}
+            {% if msg.startswith("✅") %}
+                <div class="flash flash-success">{{ msg }}</div>
+            {% elif msg.startswith("❌") %}
+                <div class="flash flash-error">{{ msg }}</div>
+            {% else %}
+                <div class="flash flash-info">{{ msg }}</div>
+            {% endif %}
+        {% endfor %}
+    </div>
+{% endif %}
+
+<style>
+    .flash {
+        padding: 8px;
+        border-radius: 4px;
+        margin-bottom: 5px;
+        opacity: 1;
+        transition: opacity 0.5s ease;
+    }
+    .flash-success {
+        background-color: #f6ffed;
+        color: #389e0d;
+        border: 1px solid #b7eb8f;
+    }
+    .flash-error {
+        background-color: #fff1f0;
+        color: #cf1322;
+        border: 1px solid #ffa39e;
+    }
+    .flash-info {
+        background-color: #e6f7ff;
+        color: #0050b3;
+        border: 1px solid #91d5ff;
+    }
+</style>
+
+<script>
+    setTimeout(() => {
+        const flashContainer = document.getElementById("flash-messages");
+        if (flashContainer) {
+            flashContainer.querySelectorAll(".flash").forEach(el => {
+                el.style.opacity = "0";
+                setTimeout(() => el.remove(), 500); // 等淡出动画结束再移除
+            });
+        }
+    }, 3000); // 3 秒后自动淡出
+</script>

@@ -153,17 +153,22 @@ class TaskScheduler:
             raise ValueError(f"找不到任务函数: {task.func_name}")
         func = self.task_func_map[task.func_name]
 
+        job_kwargs = {}
+        if task.args:
+            job_kwargs["args"] = task.args
+        if task.kwargs:
+            job_kwargs["kwargs"] = task.kwargs
+
         self.scheduler.add_job(
             func=func,
             trigger=trigger,
-            args=task.args or [],
-            kwargs=task.kwargs or {},
             id=task.id,
             name=task.name,
             replace_existing=True,
             coalesce=True,
             max_instances=1,
             misfire_grace_time=60,
+            **job_kwargs
         )
         if not task.is_enabled:
             self.scheduler.pause_job(task.id)

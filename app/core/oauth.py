@@ -188,7 +188,7 @@ class OAuthService:
         )
         
         # Store refresh token in Redis (multi-device support, same as normal login)
-        await redis_manager.set(
+        await redis_manager.set_key(
             f"refresh_token:{user.id}:{refresh_token}",
             "valid",
             expire=7 * 24 * 60 * 60  # 7 days

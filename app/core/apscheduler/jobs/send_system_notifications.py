@@ -10,18 +10,18 @@ async def send_system_notifications():
         logger.info("开始发送系统通知...")
         # 模拟发送系统通知
         notifications = [
-            # {
-            #     "id": "system_maintenance",
-            #     "title": "系统维护通知",
-            #     "message": "系统正常运行中，所有功能正常",
-            #     "notification_type": "info"
-            # },
-            # {
-            #     "id": "performance_monitor",
-            #     "title": "性能监控",
-            #     "message": "系统性能良好，响应时间正常",
-            #     "notification_type": "info"
-            # }
+            {
+                "id": "system_maintenance",
+                "title": "系统维护通知",
+                "message": "系统正常运行中，所有功能正常",
+                "notification_type": "info"
+            },
+            {
+                "id": "performance_monitor",
+                "title": "性能监控",
+                "message": "系统性能良好，响应时间正常",
+                "notification_type": "info"
+            }
         ]
         # 推送到WebSocket首页频道
         for notification in notifications:

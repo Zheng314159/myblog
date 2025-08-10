@@ -35,7 +35,7 @@ async def get_config() -> Dict[str, Any]:
         "database_url": "***hidden***" if settings.database_url else None,
         
         # JWT设置
-        "algorithm": settings.algorithm,
+        "algorithm": "***hidden***" if settings.algorithm else None,
         "access_token_expire_minutes": settings.access_token_expire_minutes,
         "refresh_token_expire_days": settings.refresh_token_expire_days,
         
@@ -43,10 +43,10 @@ async def get_config() -> Dict[str, Any]:
         "redis_url": "***hidden***" if settings.redis_url else None,
         
         # 邮箱设置
-        "smtp_server": settings.smtp_server,
-        "smtp_port": settings.smtp_port,
+        "smtp_server": "***hidden***" if settings.smtp_server else None,
+        "smtp_port": "***hidden***" if settings.smtp_port else None,
         "email_user": "***hidden***" if settings.email_user else None,
-        "email_from": settings.email_from,
+        "email_from": "***hidden***" if settings.email_from else None,
         "email_enabled": settings.email_enabled,
         
         # CORS设置

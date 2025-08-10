@@ -436,21 +436,36 @@ async def lifespan(app: FastAPI):
             # 删除后从调度器删除任务
             await scheduler.remove_job(obj.id)
 
+        @action(
+            name="view_job_status",  # 内部标识符，只能用字母数字下划线
+            label="查看任务状态",     # 展示给用户的文字，可以用中文
+            add_in_list=True,
+            add_in_detail=True
+        )
+        async def view_job_status(self, request: Request):
+            job_status = scheduler.get_job_status()
+            request.session["job_status"] = job_status
+            referer = request.headers.get("referer")
+            if referer:
+                return RedirectResponse(referer, status_code=303)
+            base_path = "/".join(request.url.path.split("/")[:3])
+            return RedirectResponse(f"{base_path}/list", status_code=303)
+
         @action_with_pks(name="pause_job", label="暂停任务", confirmation_message="确定要暂停选中任务吗？")
         async def pause_job(self, request: Request, item: ScheduledTask):
-            await scheduler.pause_job(item.id)
+            await scheduler.pause_job(item.func_name)
             return f"任务 {item.name} 已暂停"
 
 
         @action_with_pks(name="resume_job", label="恢复任务", confirmation_message="确定要恢复选中任务吗？")
         async def resume_job(self, request: Request, item: ScheduledTask):
-            await scheduler.resume_job(item.id)
+            await scheduler.resume_job(item.func_name)
             return f"任务 {item.name} 已恢复"
 
 
         @action_with_pks(name="remove_job", label="从调度器移除", confirmation_message="不会删除数据库中的任务，仅从调度器中移除，确认？")
         async def remove_job(self, request: Request, item: ScheduledTask):
-            await scheduler.remove_job(item.id)
+            await scheduler.remove_job(item.func_name)
             return f"任务 {item.name} 已从调度器移除"
 
 
@@ -549,9 +564,20 @@ app.mount("/admin/statics", StaticFiles(directory="app/static/sqladmin"), name="
 @app.middleware("http")
 async def flash_message_middleware(request: Request, call_next):
     # 从 session 取出一次性消息
-    flash_messages = request.session.pop("flash_messages", None)
-    if flash_messages:
-        request.state.flash_messages = flash_messages
+        # 确保 session 存在再操作
+    try:
+        if hasattr(request, "session"):
+            flash_messages = request.session.pop("flash_messages", None)
+            job_status = request.session.pop("job_status", None)
+            # print(f"🐱‍🏍🐱‍🏍🐱‍🏍{job_status.jobs}")
+            if flash_messages:
+                request.state.flash_messages = flash_messages
+            if job_status:
+                request.state.job_status = job_status
+    except Exception as e:
+        # 避免 session 弹出出错导致请求失败
+        # 这里可以日志记录异常
+        pass
     response = await call_next(request)
     return response
 setup_middleware(app)  # 恢复中间件

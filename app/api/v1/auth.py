@@ -48,7 +48,7 @@ async def send_verification_code(
     verification_code = generate_verification_code()
     
     # 存储验证码到Redis（5分钟有效期）
-    await redis_manager.set(
+    await redis_manager.set_key(
         f"email_verification:{email}",
         verification_code,
         expire=5 * 60  # 5 minutes
@@ -178,12 +178,12 @@ async def register(
             raise HTTPException(status_code=400, detail="Verification code required when email verification is enabled")
         
         # 验证验证码（这里应该从Redis中获取并验证）
-        stored_code = await redis_manager.get(f"email_verification:{user_data.email}")
+        stored_code = await redis_manager.get_key(f"email_verification:{user_data.email}")
         if not stored_code or stored_code != verification_code:
             raise HTTPException(status_code=400, detail="Invalid verification code")
         
         # 验证成功后删除验证码
-        await redis_manager.delete(f"email_verification:{user_data.email}")
+        await redis_manager.delete_key(f"email_verification:{user_data.email}")
     
     # Create new user
     hashed_password = get_password_hash(user_data.password or "")
@@ -208,7 +208,7 @@ async def register(
     )
     
     # Store refresh token in Redis
-    await redis_manager.set(
+    await redis_manager.set_key(
         f"refresh_token:{db_user.id}:{refresh_token}",
         "valid",
         expire=7 * 24 * 60 * 60  # 7 days
@@ -251,7 +251,7 @@ async def login(
     )
     
     # Store refresh token in Redis
-    await redis_manager.set(
+    await redis_manager.set_key(
         f"refresh_token:{user.id}:{refresh_token}",
         "valid",
         expire=7 * 24 * 60 * 60  # 7 days
@@ -278,7 +278,7 @@ async def refresh_token(
     user_id = payload.get("user_id")
     username = payload.get("sub")
     # 多端：校验refresh_token:{user_id}:{refresh_token}
-    exists = await redis_manager.exists(f"refresh_token:{user_id}:{refresh_data.refresh_token}")
+    exists = await redis_manager.exists_key(f"refresh_token:{user_id}:{refresh_data.refresh_token}")
     if not exists:
         raise AuthenticationError("Invalid refresh token")
     # Get user
@@ -294,7 +294,7 @@ async def refresh_token(
         data={"sub": user.username, "user_id": user.id}
     )
     # 多端：存储新refresh token，不删除旧的
-    await redis_manager.set(
+    await redis_manager.set_key(
         f"refresh_token:{user.id}:{new_refresh_token}",
         "valid",
         expire=7 * 24 * 60 * 60
@@ -310,7 +310,7 @@ async def refresh_token(
 async def logout(logout_data: LogoutRequest):
     """Logout user and blacklist token"""
     # Add access token to blacklist
-    await redis_manager.set(
+    await redis_manager.set_key(
         f"blacklist:{logout_data.access_token}",
         "revoked",
         expire=30 * 60  # 30 minutes (access token lifetime)
@@ -347,7 +347,7 @@ async def forgot_password(
     )
     
     # Store reset token in Redis
-    await redis_manager.set(
+    await redis_manager.set_key(
         f"password_reset:{user.id}",
         reset_token,
         expire=24 * 60 * 60  # 24 hours
@@ -394,12 +394,12 @@ async def change_password(
             raise AuthenticationError("Verification code is required when email verification is enabled")
         
         # Verify the verification code
-        stored_code = await redis_manager.get(f"verification_code:{user.email}")
+        stored_code = await redis_manager.get_key(f"verification_code:{user.email}")
         if not stored_code or stored_code != change_data.verification_code:
             raise AuthenticationError("Invalid or expired verification code")
         
         # Remove the verification code after successful verification
-        await redis_manager.delete(f"verification_code:{user.email}")
+        await redis_manager.delete_key(f"verification_code:{user.email}")
     
     # Update password
     user.hashed_password = get_password_hash(change_data.new_password)
@@ -423,7 +423,7 @@ async def send_change_password_code(
     
     # Store verification code in Redis (5 minutes expiry)
     user_email = current_user["email"] if isinstance(current_user, dict) else current_user.email
-    await redis_manager.set(
+    await redis_manager.set_key(
         f"verification_code:{user_email}",
         verification_code,
         expire=5 * 60  # 5 minutes
@@ -449,7 +449,7 @@ async def reset_password(
     user_id = payload.get("user_id")
     
     # Check if reset token exists in Redis
-    stored_token = await redis_manager.get(f"password_reset:{user_id}")
+    stored_token = await redis_manager.get_key(f"password_reset:{user_id}")
     if not stored_token or stored_token != reset_data.token:
         raise AuthenticationError("Invalid or expired reset token")
     
@@ -465,7 +465,7 @@ async def reset_password(
     await db.commit()
     
     # Remove reset token from Redis
-    await redis_manager.delete(f"password_reset:{user_id}")
+    await redis_manager.delete_key(f"password_reset:{user_id}")
     
     return {"message": "Password successfully reset"}
 

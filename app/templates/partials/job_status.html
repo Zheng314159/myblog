@@ -1,0 +1,30 @@
+{% if request.state.job_status is defined %}
+    <p>调度器状态: <strong>{{ request.state.job_status.status }}</strong></p>
+    <table border="1" cellpadding="5">
+        <thead>
+            <tr>
+                <th>任务函数</th>
+                <th>是否在调度器</th>
+                <th>状态</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for job in request.state.job_status.jobs %}
+            <tr>
+                <td>{{ job.func }}</td>
+                <td>{{ "是" if job.in_scheduler else "否" }}</td>
+                <td>
+                    {% if job.status == "running" %}
+                        <span style="color: green;">运行中</span>
+                    {% elif job.status == "paused" %}
+                        <span style="color: orange;">已暂停</span>
+                    {% else %}
+                        <span style="color: red;">未加入</span>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+{% endif %}
+

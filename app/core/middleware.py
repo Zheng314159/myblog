@@ -100,7 +100,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             raise AuthenticationError("Malformed token")
 
         # Check if token is blacklisted
-        if await redis_manager.is_blacklisted(token):
+        if await redis_manager.is_token_blacklisted(token):
             logger.error("🚫 Blacklisted token used.")
             raise AuthenticationError("Token has been revoked")
 

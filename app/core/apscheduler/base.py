@@ -97,38 +97,37 @@ class TaskScheduler:
             logger.error(f"停止定时任务调度器失败: {e}")
 
     def get_job_status(self) -> Dict[str, Any]:
-        """获取任务状态"""
+        """获取 task_func_map 中每个任务的调度状态（运行 / 暂停 / 未加入）"""
         if not self._running:
             return {"status": "stopped", "jobs": []}
-        
-        jobs = []
-        for job in self.scheduler.get_jobs():
-            jobs.append({
-                "id": job.id,
-                "name": job.name,
-                "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
-                "trigger": str(job.trigger)
+
+        scheduler_jobs = {job.id: job for job in self.scheduler.get_jobs()}
+
+        jobs_status = []
+        for task_id, func in self.task_func_map.items():
+            job = scheduler_jobs.get(task_id)
+            if job:
+                if job.next_run_time is None:
+                    status = "paused"  # 已注册但暂停
+                else:
+                    status = "running"  # 已注册且有下一次运行时间
+                in_scheduler = True
+            else:
+                status = "not_scheduled"  # 未加入调度器
+                in_scheduler = False
+
+            jobs_status.append({
+                "func": getattr(func, "__name__", str(func)),
+                "in_scheduler": in_scheduler,
+                "status": status
             })
-        
+
         return {
             "status": "running",
-            "jobs": jobs
-        }
-    
-    def get_job_info(self, job_id: str) -> dict:
-        job = self.scheduler.get_job(job_id)
-        if not job:
-            return {}
-        return {
-            "id": job.id,
-            "name": job.name,
-            "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
-            "trigger": str(job.trigger),
-            "args": job.args,
-            "kwargs": job.kwargs,
+            "jobs": jobs_status
         }
 
-
+   
     async def add_job_from_db(self, task: ScheduledTask):
         """根据数据库的ScheduledTask实例，添加或更新调度任务"""
         try:
@@ -162,7 +161,7 @@ class TaskScheduler:
         self.scheduler.add_job(
             func=func,
             trigger=trigger,
-            id=task.id,
+            id=task.func_name,
             name=task.name,
             replace_existing=True,
             coalesce=True,

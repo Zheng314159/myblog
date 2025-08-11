@@ -1,0 +1,40 @@
+sequenceDiagram
+    participant UI as React组件
+    participant CFG as getConfig()
+    participant API as getNotifications()
+    participant WS as WebSocket服务
+    participant STATE as setNotifications()
+
+    Note over UI: 组件挂载 useEffect 执行
+    UI->>CFG: 拉取通知配置
+    CFG-->>UI: { fetchEnabled, pushEnabled }
+
+    alt 仅拉取(fetchEnabled && !pushEnabled)
+        UI->>API: GET /notifications?limit=5
+        API-->>UI: 返回历史通知列表
+        UI->>STATE: 去重 + 保留最新5条
+        Note over UI: 完成初始化，无实时更新
+    else 仅推送(!fetchEnabled && pushEnabled)
+        UI->>WS: connectWebSocket(token)
+        WS-->>UI: 建立连接成功
+        loop 接收消息
+            WS-->>UI: msg.type = notification
+            UI->>STATE: 去重 + 前插入新消息 + 保留5条
+            WS-->>UI: msg.type = task_status
+            UI->>STATE: setTaskStatus()
+        end
+    else 拉取+推送(fetchEnabled && pushEnabled)
+        UI->>API: GET /notifications?limit=5
+        API-->>UI: 返回历史通知列表
+        UI->>STATE: 去重 + 保留最新5条
+        UI->>WS: connectWebSocket(token)
+        WS-->>UI: 建立连接成功
+        loop 接收消息
+            WS-->>UI: msg.type = notification
+            UI->>STATE: 去重 + 前插入新消息 + 保留5条
+            WS-->>UI: msg.type = task_status
+            UI->>STATE: setTaskStatus()
+        end
+    end
+
+    Note over UI: 组件卸载时调用 wsCleanup() 关闭WS

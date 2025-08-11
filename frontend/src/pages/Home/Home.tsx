@@ -22,9 +22,10 @@ import {
 } from "@ant-design/icons";
 import { getArticles } from "../../api/article.ts";
 import { getMediaList } from "../../api/upload.ts";
-import { getStatistics, getConfig, getNotifications } from "../../api/config.ts";
+import { getStatistics } from "../../api/config.ts";
 import { useNavigate } from "react-router-dom";
-import { connectWebSocket, disconnectWebSocket } from "../../api/websocket.ts";
+import { useNotifications } from "@/components/HologramBanner/useNotifications.ts";
+import HologramBanner from "@/components/HologramBanner/HologramBanner.tsx";
 
 const { Title, Paragraph } = Typography;
 
@@ -40,10 +41,13 @@ const Home: React.FC = () => {
     total_media: 0,
     total_views: 0
   });
+
+  // const { notifications, taskStatus } = useNotifications({
+  //   maxCount: 10, // 最多保留 10 条
+  //   initialFetchCount: 20, // 首次拉取 20 条
+  // });
+  // console.log("home:notifications:", notifications);
   const [statsLoading, setStatsLoading] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [taskStatus, setTaskStatus] = useState<any>(null);
-  const [enableNotificationFetch, setEnableNotificationFetch] = useState(false);
   const navigate = useNavigate();
 
   const carouselItems = [
@@ -95,127 +99,16 @@ const Home: React.FC = () => {
         setStatsLoading(false);
       });
 
-    let wsCleanup: (() => void) | undefined;
 
-    getConfig().then(cfg => {
-      const fetchEnabled = cfg && cfg.enable_notification_fetch;
-      const pushEnabled = cfg && cfg.enable_notification_push;
-      setEnableNotificationFetch(!!fetchEnabled);
-      // 只拉取历史
-      if (fetchEnabled && !pushEnabled) {
-        getNotifications(5)
-          .then(data => {
-            if (Array.isArray(data.notifications)) {
-              const normalized = data.notifications.map((n: any) => ({
-                type: 'system_notification',
-                data: n
-              }));
-              setNotifications(() => {
-                const map = new Map();
-                for (const n of normalized) {
-                  const key = (n.data?.id?.toString().trim()) || (n.id?.toString().trim()) || (n.data?.title && n.data?.message ? n.data.title.toString().trim() + '_' + n.data.message.toString().trim() : undefined);
-                  if (!key) continue;
-                  if (!map.has(key)) {
-                    map.set(key, n);
-                  }
-                }
-                return Array.from(map.values()).slice(0, 5);
-              });
-            }
-          });
-        return;
-      }
-      // 只推送
-      if (!fetchEnabled && pushEnabled) {
-        const token = localStorage.getItem("access_token");
-        const ws = connectWebSocket(token || undefined);
-        ws.onmessage = (event) => {
-          try {
-            const msg = JSON.parse(event.data);
-            if (msg.type && msg.type.includes("notification")) {
-              setNotifications((prev) => {
-                const all = [msg, ...prev];
-                const map = new Map();
-                for (const n of all) {
-                  const key = (n.data?.id?.toString().trim()) || (n.id?.toString().trim()) || (n.data?.title && n.data?.message ? n.data.title.toString().trim() + '_' + n.data.message.toString().trim() : undefined);
-                  if (!key) continue;
-                  if (!map.has(key)) {
-                    map.set(key, n);
-                  }
-                }
-                return Array.from(map.values()).slice(0, 5);
-              });
-            } else if (msg.type === "task_status") {
-              setTaskStatus(msg.data);
-            }
-          } catch (e) {}
-        };
-        wsCleanup = () => { disconnectWebSocket(); };
-        return;
-      }
-      // 拉取+推送
-      if (fetchEnabled && pushEnabled) {
-        getNotifications(5)
-          .then(data => {
-            if (Array.isArray(data.notifications)) {
-              const normalized = data.notifications.map((n: any) => ({
-                type: 'system_notification',
-                data: n
-              }));
-              setNotifications((prev) => {
-                const all = [...normalized, ...prev];
-                const map = new Map();
-                for (const n of all) {
-                  const key = (n.data?.id?.toString().trim()) || (n.id?.toString().trim()) || (n.data?.title && n.data?.message ? n.data.title.toString().trim() + '_' + n.data.message.toString().trim() : undefined);
-                  if (!key) continue;
-                  if (!map.has(key)) {
-                    map.set(key, n);
-                  }
-                }
-                return Array.from(map.values()).slice(0, 5);
-              });
-            }
-          });
-        const token = localStorage.getItem("access_token");
-        const ws = connectWebSocket(token || undefined);
-        ws.onmessage = (event) => {
-          try {
-            const msg = JSON.parse(event.data);
-            if (msg.type && msg.type.includes("notification")) {
-              setNotifications((prev) => {
-                const all = [msg, ...prev];
-                const map = new Map();
-                for (const n of all) {
-                  const key = (n.data?.id?.toString().trim()) || (n.id?.toString().trim()) || (n.data?.title && n.data?.message ? n.data.title.toString().trim() + '_' + n.data.message.toString().trim() : undefined);
-                  if (!key) continue;
-                  if (!map.has(key)) {
-                    map.set(key, n);
-                  }
-                }
-                return Array.from(map.values()).slice(0, 5);
-              });
-            } else if (msg.type === "task_status") {
-              setTaskStatus(msg.data);
-            }
-          } catch (e) {}
-        };
-        wsCleanup = () => { disconnectWebSocket(); };
-        return;
-      }
-    });
-    // useEffect cleanup: 组件卸载时断开WebSocket
-    return () => {
-      if (wsCleanup) wsCleanup();
-    };
   }, []);
 
   // 任务栏和通知栏 key debug
-  if (taskStatus && taskStatus.jobs) {
-    console.log('job keys:', taskStatus.jobs.map((job: any, idx: number) => job.id ? String(job.id) : String(job.name) + '-' + idx));
-  }
-  if (notifications) {
-    console.log('notify keys:', notifications.map((n, idx) => n.data?.id ? String(n.data.id) : (n.id ? String(n.id) : 'notify-' + idx)));
-  }
+  // if (taskStatus && taskStatus.jobs) {
+  //   console.log('job keys:', taskStatus.jobs.map((job: any, idx: number) => job.id ? String(job.id) : String(job.name) + '-' + idx));
+  // }
+  // if (notifications) {
+  //   console.log('notify keys:', notifications.map((n, idx) => n.data?.id ? String(n.data.id) : (n.id ? String(n.id) : 'notify-' + idx)));
+  // }
 
   const renderCarousel = () => (
     <Carousel autoplay style={{ marginBottom: 32 }}>
@@ -297,7 +190,7 @@ const Home: React.FC = () => {
   return (
     <App>
       {/* 只保留数据库驱动的系统通知栏，type为system_notification，无限滚动，右到左滚动动画 */}
-      {notifications.filter((n: any) => n.type === 'system_notification').length > 0 && (
+      {/* {notifications.filter((n: any) => n.type === 'system_notification').length > 0 && (
         <div
           style={{
             position: "fixed",
@@ -340,26 +233,36 @@ const Home: React.FC = () => {
             }
           `}</style>
         </div>
-      )}
+      )} */}
+      <HologramBanner />
       <div>
         {renderCarousel()}
         {renderStatistics()}
-        
+
         <Title level={2}>最新文章</Title>
         <Spin spinning={loading}>
           <List
             itemLayout="vertical"
             dataSource={articles}
-            renderItem={item => (
+            renderItem={(item) => (
               <List.Item
                 key={item.id}
                 onClick={() => navigate(`/article/${item.id}`)}
                 style={{ cursor: "pointer" }}
-                extra={item.tags && item.tags.map((tag: any) => <Tag key={typeof tag === 'string' ? tag : tag.name}>{typeof tag === 'string' ? tag : tag.name}</Tag>)}
+                extra={
+                  item.tags &&
+                  item.tags.map((tag: any) => (
+                    <Tag key={typeof tag === "string" ? tag : tag.name}>
+                      {typeof tag === "string" ? tag : tag.name}
+                    </Tag>
+                  ))
+                }
               >
                 <List.Item.Meta
                   title={item.title}
-                  description={`作者: ${item.author?.username || "匿名"} | 发布时间: ${item.created_at?.slice(0, 10)}`}
+                  description={`作者: ${
+                    item.author?.username || "匿名"
+                  } | 发布时间: ${item.created_at?.slice(0, 10)}`}
                 />
                 <div>{item.summary || item.content?.slice(0, 120) + "..."}</div>
               </List.Item>
@@ -369,64 +272,171 @@ const Home: React.FC = () => {
         <div style={{ marginBottom: 32 }}>
           <Title level={3}>最新多媒体</Title>
           <div style={{ display: "flex", gap: 16 }}>
-            {media.filter(m => m.type === "image").slice(0,3).map(img => (
-              <Card key={img.filename} hoverable style={{ width: 120 }}
-                cover={<Image src={img.url} alt={img.filename} style={{ height: 80, objectFit: "cover" }} />}
-                actions={[<a href={img.url} download target="_blank" rel="noopener noreferrer">下载</a>]}
-              >
-                <div style={{ fontSize: 12, wordBreak: 'break-all', textAlign: 'center' }} title={img.filename}>
-                  <span style={{
-                    display: 'inline-block',
-                    maxWidth: '100%',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    verticalAlign: 'bottom'
-                  }}>{img.filename}</span>
-                </div>
-              </Card>
-            ))}
-            {media.filter(m => m.type === "video").slice(0,3).map(vid => (
-              <Card key={vid.filename} hoverable style={{ width: 160 }}
-                cover={<video src={vid.url} controls style={{ width: "100%", height: 80, objectFit: "cover" }} />}
-                actions={[<a href={vid.url} download target="_blank" rel="noopener noreferrer">下载</a>]}
-              >
-                <div style={{ fontSize: 12, wordBreak: 'break-all', textAlign: 'center' }} title={vid.filename}>
-                  <span style={{
-                    display: 'inline-block',
-                    maxWidth: '100%',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    verticalAlign: 'bottom'
-                  }}>{vid.filename}</span>
-                </div>
-              </Card>
-            ))}
-            {media.filter(m => m.type === "pdf").slice(0,3).map(pdf => (
-              <Card key={pdf.filename} hoverable style={{ width: 120 }}
-                cover={<div style={{height:80,display:'flex',alignItems:'center',justifyContent:'center',background:'#fafafa'}}>
-                  <img src="/pdf_icon.svg" alt="pdf" style={{height:48}} />
-                </div>}
-                actions={[
-                  <a href={`${pdf.url}?preview=false`} target="_blank" rel="noopener noreferrer" download>下载</a>,
+            {media
+              .filter((m) => m.type === "image")
+              .slice(0, 3)
+              .map((img) => (
+                <Card
+                  key={img.filename}
+                  hoverable
+                  style={{ width: 120 }}
+                  cover={
+                    <Image
+                      src={img.url}
+                      alt={img.filename}
+                      style={{ height: 80, objectFit: "cover" }}
+                    />
+                  }
+                  actions={[
+                    <a
+                      href={img.url}
+                      download
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      下载
+                    </a>,
+                  ]}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      wordBreak: "break-all",
+                      textAlign: "center",
+                    }}
+                    title={img.filename}
+                  >
+                    <span
+                      style={{
+                        display: "inline-block",
+                        maxWidth: "100%",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        verticalAlign: "bottom",
+                      }}
+                    >
+                      {img.filename}
+                    </span>
+                  </div>
+                </Card>
+              ))}
+            {media
+              .filter((m) => m.type === "video")
+              .slice(0, 3)
+              .map((vid) => (
+                <Card
+                  key={vid.filename}
+                  hoverable
+                  style={{ width: 160 }}
+                  cover={
+                    <video
+                      src={vid.url}
+                      controls
+                      style={{ width: "100%", height: 80, objectFit: "cover" }}
+                    />
+                  }
+                  actions={[
+                    <a
+                      href={vid.url}
+                      download
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      下载
+                    </a>,
+                  ]}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      wordBreak: "break-all",
+                      textAlign: "center",
+                    }}
+                    title={vid.filename}
+                  >
+                    <span
+                      style={{
+                        display: "inline-block",
+                        maxWidth: "100%",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        verticalAlign: "bottom",
+                      }}
+                    >
+                      {vid.filename}
+                    </span>
+                  </div>
+                </Card>
+              ))}
+            {media
+              .filter((m) => m.type === "pdf")
+              .slice(0, 3)
+              .map((pdf) => (
+                <Card
+                  key={pdf.filename}
+                  hoverable
+                  style={{ width: 120 }}
+                  cover={
+                    <div
+                      style={{
+                        height: 80,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "#fafafa",
+                      }}
+                    >
+                      <img
+                        src="/pdf_icon.svg"
+                        alt="pdf"
+                        style={{ height: 48 }}
+                      />
+                    </div>
+                  }
+                  actions={[
+                    <a
+                      href={`${pdf.url}?preview=false`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download
+                    >
+                      下载
+                    </a>,
 
-                  <a href={`${pdf.url}?preview=true`} target="_blank" rel="noopener noreferrer">预览</a>
-
-                ]}
-              >
-                <div style={{ fontSize: 12, wordBreak: 'break-all', textAlign: 'center' }} title={pdf.filename}>
-                  <span style={{
-                    display: 'inline-block',
-                    maxWidth: '100%',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    verticalAlign: 'bottom'
-                  }}>{pdf.filename}</span>
-                </div>
-              </Card>
-            ))}
+                    <a
+                      href={`${pdf.url}?preview=true`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      预览
+                    </a>,
+                  ]}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      wordBreak: "break-all",
+                      textAlign: "center",
+                    }}
+                    title={pdf.filename}
+                  >
+                    <span
+                      style={{
+                        display: "inline-block",
+                        maxWidth: "100%",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        verticalAlign: "bottom",
+                      }}
+                    >
+                      {pdf.filename}
+                    </span>
+                  </div>
+                </Card>
+              ))}
           </div>
         </div>
       </div>

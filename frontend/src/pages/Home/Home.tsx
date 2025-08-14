@@ -271,7 +271,7 @@ const Home: React.FC = () => {
         </Spin>
         <div style={{ marginBottom: 32 }}>
           <Title level={3}>最新多媒体</Title>
-          <div style={{ display: "flex", gap: 16 }}>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             {media
               .filter((m) => m.type === "image")
               .slice(0, 3)

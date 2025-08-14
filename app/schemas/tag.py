@@ -32,4 +32,7 @@ class TagWithCountResponse(BaseModel):
     article_count: int = 0
 
     class Config:
-        from_attributes = True 
+        from_attributes = True
+
+class PopularTagsResponse(BaseModel):
+    tags: list[TagWithCountResponse]

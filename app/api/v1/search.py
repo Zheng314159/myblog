@@ -1,5 +1,5 @@
 from typing import List, Optional, Annotated
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select
 from sqlalchemy.orm import selectinload
@@ -15,7 +15,8 @@ router = APIRouter(prefix="/search", tags=["search"])
 @router.get("/", response_model=List[ArticleListResponse])
 async def search_articles(
     db: Annotated[AsyncSession, Depends(get_db)],
-    q: str = Query(..., description="搜索关键词"),
+    q: Optional[str] = Query(None, description="搜索关键词"),
+    tag: Optional[str] = Query(None, description="按标签搜索"),
     skip: int = Query(0, ge=0, description="跳过记录数"),
     limit: int = Query(10, ge=1, le=100, description="返回记录数"),
     status: Optional[ArticleStatus] = Query(None, description="文章状态过滤"),
@@ -26,86 +27,203 @@ async def search_articles(
     基于 SQLite FTS5 全文索引搜索文章标题和内容
     如果FTS索引不可用，则使用简单的LIKE搜索作为备选
     """
+    """全文搜索 + 标签过滤"""
+
     try:
-        # 首先尝试使用FTS搜索
+        results = await get_articles_by_tag_or_not( db, q=q, skip=skip, limit=limit, status=status, author=author,tag=tag)
+        if results:
+            return results
+
+        # FTS 无结果，用 LIKE 回退
+        print(f"FTS搜索无结果，使用LIKE搜索备选方案")
+        return await search_articles_fallback(db, q, skip, limit, status, author,tag=tag)
+
+    except Exception as e:
+        print(f"FTS搜索失败，使用LIKE搜索备选方案: {e}")
+        await db.rollback()
+        return await search_articles_fallback(db, q, skip, limit, status, author,tag=tag)
+
+
+async def search_articles_fallback(
+    db: AsyncSession,
+    query: str|None,
+    skip: int = 0,
+    limit: int = 10,
+    status: Optional[ArticleStatus] = None,
+    author: Optional[str] = None,
+    tag: Optional[str] = None
+) -> List[ArticleListResponse]:
+    """
+    备选搜索方案：使用简单的LIKE搜索
+    q 一定存在，tag 可选
+    支持交集查询
+    """
+    from app.models.article import Article
+    from app.models.tag import ArticleTag, Tag
+    from app.models.user import User
+    from app.schemas.article import UserBasicInfo, TagInfo
+    print(f"🐱‍🏍🐱‍🏍🐱‍🏍🐱‍🏍{tag}")
+    # ===== 第一步：根据 q 搜索文章 ID =====
+    stmt_q = select(Article.id).where(
+        Article.title.contains(query) | Article.content.contains(query)
+    )
+
+    # 状态过滤
+    if status:
+        stmt_q = stmt_q.where(Article.status == status)
+    else:
+        stmt_q = stmt_q.where(Article.status == ArticleStatus.PUBLISHED)
+
+    # 作者过滤
+    if author:
+        stmt_q = stmt_q.join(User, User.id == Article.author_id).where(User.username == author)
+
+    result_q = await db.execute(stmt_q)
+    article_ids = [row[0] for row in result_q.fetchall()]
+    print(f"🐱‍🏍{article_ids}")
+    if not article_ids:
+        return []
+
+    # ===== 第二步：如果有 tag，进一步过滤 =====
+    if tag:
+        stmt_tag = (
+            select(Article.id)
+            .join(ArticleTag, Article.id == ArticleTag.article_id)
+            .join(Tag, Tag.id == ArticleTag.tag_id)
+            .where(Article.id.in_(article_ids))  # 保证交集
+            .where(Tag.name == tag)
+        )
+        result_tag = await db.execute(stmt_tag)
+        article_ids = [row[0] for row in result_tag.fetchall()]
+        print(f"🐱‍🏍🐱‍🏍{article_ids}")
+        if not article_ids:
+            return []
+
+    # ===== 第三步：查询完整 Article 对象并加载关系 =====
+    stmt_articles = (
+        select(Article)
+        .where(Article.id.in_(article_ids))
+        .options(
+            selectinload(Article.author),
+            selectinload(Article.tags).selectinload(ArticleTag.tag),
+            selectinload(Article.comments)
+        )
+        .order_by(Article.published_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+
+    result = await db.execute(stmt_articles)
+    articles = result.scalars().all()
+
+    # ===== 构建响应 =====
+    return [
+        ArticleListResponse(
+            id=a.id,
+            title=a.title,
+            summary=a.summary,
+            status=a.status,
+            author=UserBasicInfo.model_validate(a.author),
+            tags=[TagInfo.model_validate(at.tag) for at in a.tags if at.tag],
+            created_at=a.created_at,
+            updated_at=a.updated_at,
+            view_count=a.view_count,
+            comment_count=len(a.comments or [])
+        )
+        for a in articles
+    ]
+
+
+
+
+
+async def get_articles_by_tag_or_not(
+    db: AsyncSession,
+    q: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 10,
+    status: Optional[ArticleStatus] = None,
+    author: Optional[str] = None,
+    tag: str|None = None
+) -> List[ArticleListResponse]:
+    from app.models.article import Article
+    from app.models.tag import ArticleTag, Tag
+    from app.models.user import User
+    from app.schemas.article import UserBasicInfo, TagInfo
+
+    # 查标签
+    # 如果有关键字搜索
+    if q:
         results = await FTSSearch.search_articles(
             db=db,
             query=q,
             skip=skip,
             limit=limit,
             status=status,
-            author=author
+            author=author,
+            tag=tag,  # 标签过滤
         )
-        
-        # 如果FTS搜索返回结果，直接返回
         if results:
             return results
-            
-        # 如果FTS搜索没有结果，使用简单的LIKE搜索作为备选
-        print(f"FTS搜索无结果，使用LIKE搜索备选方案")
-        return await search_articles_fallback(db, q, skip, limit, status, author)
-        
-    except Exception as e:
-        print(f"FTS搜索失败，使用LIKE搜索备选方案: {e}")
-        await db.rollback()  # 回滚事务
-        return await search_articles_fallback(db, q, skip, limit, status, author)
+    # 如果只有标签过滤
+    if tag:
+        tag_result = await db.execute(select(Tag).where(Tag.name == tag))
+        tagentity = tag_result.scalar_one_or_none()
+        if not tagentity:
+            return []
 
-
-async def search_articles_fallback(
-    db: AsyncSession,
-    query: str,
-    skip: int = 0,
-    limit: int = 10,
-    status: Optional[ArticleStatus] = None,
-    author: Optional[str] = None
-) -> List[ArticleListResponse]:
-    """备选搜索方案：使用简单的LIKE搜索"""
-    from app.models.article import Article
-    from app.models.tag import ArticleTag, Tag
-    from app.models.user import User
-    from app.schemas.article import UserBasicInfo, TagInfo
-    
-    # 构建查询
-    search_query = select(Article).options(
-        selectinload(Article.author),
-        selectinload(Article.tags).selectinload(ArticleTag.tag),
-        selectinload(Article.comments)
-    ).where(
-        (Article.title.contains(query) | Article.content.contains(query)) &
-        (Article.status == ArticleStatus.PUBLISHED)
-    )
-    
-    # 添加作者过滤
-    if author:
-        search_query = search_query.join(User).where(User.username == author)
-    
-    search_query = search_query.order_by(Article.created_at.desc()).offset(skip).limit(limit)
-    
-    result = await db.execute(search_query)
-    articles = result.scalars().all()
-    
-    # 构建响应
-    responses = []
-    for article in articles:
-        author_info = UserBasicInfo.model_validate(article.author)
-        tag_infos = [TagInfo.model_validate(at.tag) for at in article.tags if at.tag is not None]
-        comment_count = len(article.comments) if article.comments else 0
-        
-        response = ArticleListResponse(
-            id=article.id,
-            title=article.title,
-            summary=article.summary,
-            status=article.status,
-            author=author_info,
-            tags=tag_infos,
-            created_at=article.created_at,
-            updated_at=article.updated_at,
-            view_count=0,
-            comment_count=comment_count
+        stmt = (
+            select(Article)
+            .join(ArticleTag, Article.id == ArticleTag.article_id)
+            .join(Tag, Tag.id == ArticleTag.tag_id)
+            .options(
+                selectinload(Article.author),
+                selectinload(Article.tags).selectinload(ArticleTag.tag),
+                selectinload(Article.comments)
+            )
+            .where(Tag.id == tagentity.id)
         )
-        responses.append(response)
-    
-    return responses
+
+        # 状态过滤
+        if status:
+            stmt = stmt.where(Article.status == status)
+        else:
+            stmt = stmt.where(Article.status == ArticleStatus.PUBLISHED)
+
+        # 作者过滤
+        if author:
+            stmt = stmt.join(User, User.id == Article.author_id).where(User.username == author)
+        # 关键字过滤
+        if q:
+            stmt = stmt.where(
+                Article.title.contains(q) | Article.content.contains(q)
+            )
+
+        stmt = stmt.order_by(Article.published_at.desc()).offset(skip).limit(limit)
+
+        result = await db.execute(stmt)
+        articles = result.scalars().all()
+        return [
+            ArticleListResponse(
+                id=a.id,
+                title=a.title,
+                summary=a.summary,
+                status=a.status,
+                author=UserBasicInfo.model_validate(a.author),
+                tags=[TagInfo.model_validate(at.tag) for at in a.tags if at.tag],
+                created_at=a.created_at,
+                updated_at=a.updated_at,
+                view_count=a.view_count,
+                comment_count=len(a.comments or [])
+            )
+            for a in articles
+        ]
+
+    # 如果既没有 q 也没有 tag，返回空列表
+    return await search_articles_fallback(
+        db, q, skip, limit, status, author, tag=tag
+    )
+
 
 
 @router.get("/suggestions")

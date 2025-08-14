@@ -83,12 +83,14 @@ class SQLiteFTSSearch(BaseFTSSearch):
     @staticmethod
     async def search_articles(
         db: AsyncSession,
-        query: str,
+        query: str|None,
         skip: int = 0,
         limit: int = 10,
         status: Optional[ArticleStatus] = None,
-        author: Optional[str] = None
+        author: Optional[str] = None,
+        tag: Optional[str] = None
     ) -> List[ArticleListResponse]:
+        assert query is not None
         fts_query = SQLiteFTSSearch.build_search_query(query)
         if not fts_query:
             return []
@@ -98,7 +100,7 @@ class SQLiteFTSSearch(BaseFTSSearch):
             JOIN article a ON fts.id = a.id
             WHERE fts MATCH :query
         """
-        params = {"query": fts_query}
+        params: dict[str, str | int] = {"query": fts_query}
 
         if status:
             sql += " AND a.status = :status"
@@ -109,7 +111,17 @@ class SQLiteFTSSearch(BaseFTSSearch):
         if author:
             sql += ' AND a.author_id IN (SELECT id FROM "user" WHERE username = :author)'
             params["author"] = author
-
+    # 标签过滤
+        if tag:
+            sql += """
+                AND a.id IN (
+                    SELECT at.article_id
+                    FROM article_tag at
+                    JOIN tag t ON at.tag_id = t.id
+                    WHERE t.name = :tag
+                )
+            """
+            params["tag"] = tag
         sql += " ORDER BY bm25(fts) DESC, a.created_at DESC LIMIT :limit OFFSET :skip"
         params["limit"] = limit
         params["skip"] = skip
@@ -140,7 +152,7 @@ class SQLiteFTSSearch(BaseFTSSearch):
                 tags=[TagInfo.model_validate(at.tag) for at in a.tags if at.tag],
                 created_at=a.created_at,
                 updated_at=a.updated_at,
-                view_count=0,
+                view_count=a.view_count,
                 comment_count=len(a.comments or [])
             ) for a in sorted_articles
         ]

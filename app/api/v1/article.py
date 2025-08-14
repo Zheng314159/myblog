@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import uuid
 from datetime import datetime
 from typing import List, Optional, Annotated
@@ -26,75 +27,83 @@ from app.models.media import MediaFile, MediaType
 
 router = APIRouter(prefix="/articles", tags=["articles"])
 
+# =========================
+# 路径常量
+# =========================
+BASE_DIR = Path(__file__).resolve().parents[3]  # 往上 3 层
+UPLOAD_DIR = BASE_DIR / "uploads"
+PUBLIC_DIR = BASE_DIR / "frontend" / "public"
 
-# 文件上传相关
-UPLOAD_DIR = "uploads"
-IMAGES_DIR = os.path.join(UPLOAD_DIR, "images")
-ARTICLES_DIR = os.path.join(UPLOAD_DIR, "articles")
-LATEX_DIR = os.path.join(UPLOAD_DIR, "latex")
-VIDEOS_DIR = os.path.join(UPLOAD_DIR, "videos")
-PDFS_DIR = os.path.join(UPLOAD_DIR, "pdfs")
+TYPE_DIRS = {
+    "image": "images",
+    "video": "videos",
+    "pdf": "pdfs",
+}
 
-# 确保上传目录存在
-os.makedirs(IMAGES_DIR, exist_ok=True)
-os.makedirs(ARTICLES_DIR, exist_ok=True)
-os.makedirs(LATEX_DIR, exist_ok=True)
-os.makedirs(VIDEOS_DIR, exist_ok=True)
-os.makedirs(PDFS_DIR, exist_ok=True)
-
-
-def get_file_path(filename: str, directory: str) -> str:
-    """生成文件路径"""
-    return os.path.join(directory, filename)
+# 确保目录存在
+for base_dir in (UPLOAD_DIR, PUBLIC_DIR):
+    for sub_dir in TYPE_DIRS.values():
+        (base_dir / sub_dir).mkdir(parents=True, exist_ok=True)
 
 
-@router.post("/upload-image", response_model=dict)
-async def upload_image(
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-    file: UploadFile = File(...)
+
+def get_save_path(current_user: User, file_type: str, filename: str):
+    if current_user.role == "ADMIN":
+        base_dir = PUBLIC_DIR
+        base_url = "/public"
+    else:
+        base_dir = UPLOAD_DIR
+        base_url = "/uploads"
+
+    if file_type not in TYPE_DIRS:
+        raise ValueError(f"Unsupported file type: {file_type}")
+
+    sub_dir = TYPE_DIRS[file_type]
+    save_dir = base_dir / sub_dir
+    file_url = f"{base_url}/{sub_dir}/{filename}"
+    return save_dir, file_url
+
+async def save_upload_file(file: UploadFile, save_dir: Path, filename: str) -> bytes:
+    save_dir.mkdir(parents=True, exist_ok=True)
+    file_path = save_dir / filename
+    content = await file.read()
+    file_path.write_bytes(content)
+    return content
+
+
+async def handle_upload(
+    current_user: User,
+    db: AsyncSession,
+    file: UploadFile,
+    file_type: str,
+    max_size: int,
+    allowed_mime_prefix: str
 ):
-    """上传图片"""
-    # 检查文件类型
-    if not file.content_type or not file.content_type.startswith('image/'):
-        raise HTTPException(
-            status_code=400,
-            detail="Only image files are allowed"
-        )
-    
-    # 检查文件大小 (5MB)
-    if file.size and file.size > 5 * 1024 * 1024:
-        raise HTTPException(
-            status_code=400,
-            detail="File size too large. Maximum 5MB allowed"
-        )
-    
-    # 生成唯一文件名
+    """通用上传处理逻辑"""
+    # 类型检查
+    if not file.content_type or not file.content_type.startswith(allowed_mime_prefix):
+        raise HTTPException(status_code=400, detail=f"Only {file_type} files are allowed")
+
+    # 大小检查
+    if file.size and file.size > max_size:
+        raise HTTPException(status_code=400, detail=f"File size too large. Maximum {max_size // (1024*1024)}MB allowed")
+
+    # 文件名检查
     if not file.filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
-    
-    file_extension = os.path.splitext(file.filename)[1]
-    unique_filename = f"{uuid.uuid4()}{file_extension}"
-    file_path = get_file_path(unique_filename, IMAGES_DIR)
-    
-    # 保存文件
-    try:
-        with open(file_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to save file: {str(e)}"
-        )
-    
-    # 返回文件URL
-    file_url = f"/api/v1/articles/images/{unique_filename}"
-    
-    # 保存元数据
+
+    # 生成唯一文件名
+    ext = os.path.splitext(file.filename)[1]
+    filename = f"{uuid.uuid4()}{ext}"
+
+    # 路径 & 保存
+    save_dir, file_url = get_save_path(current_user, file_type, filename)
+    content = await save_upload_file(file, save_dir, filename)
+
+    # 存数据库
     db_file = MediaFile(
-        filename=unique_filename,
-        type=MediaType.image,
+        filename=filename,
+        type=MediaType[file_type],
         url=file_url,
         size=len(content),
         description=None,
@@ -102,23 +111,137 @@ async def upload_image(
     )
     db.add(db_file)
     await db.commit()
-    
+
     return {
         "url": file_url,
-        "filename": unique_filename,
+        "filename": filename,
         "original_name": file.filename,
         "size": len(content)
     }
 
 
+# =========================
+# 上传接口
+# =========================
+@router.post("/upload-image", response_model=dict)
+async def upload_image(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    file: UploadFile = File(...)
+):
+    return await handle_upload(
+        current_user=current_user,
+        db=db,
+        file=file,
+        file_type="image",
+        max_size=5 * 1024 * 1024,  # 5MB
+        allowed_mime_prefix="image/"
+    )
+
+
+@router.post("/upload-video", response_model=dict)
+async def upload_video(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    file: UploadFile = File(...)
+):
+    return await handle_upload(
+        current_user=current_user,
+        db=db,
+        file=file,
+        file_type="video",
+        max_size=100 * 1024 * 1024,  # 100MB
+        allowed_mime_prefix="video/"
+    )
+
+
+@router.post("/upload-pdf", response_model=dict)
+async def upload_pdf(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    file: UploadFile = File(...)
+):
+    return await handle_upload(
+        current_user=current_user,
+        db=db,
+        file=file,
+        file_type="pdf",
+        max_size=20 * 1024 * 1024,  # 可以自己调
+        allowed_mime_prefix="application/pdf"
+    )
+# 文件上传相关
+from fastapi import Query
+from fastapi.responses import FileResponse, StreamingResponse
+from sqlalchemy import select
+
+@router.get("/media/{file_type}/{filename}")
+async def get_media(
+    file_type: MediaType,
+    filename: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    preview: bool = Query(True)
+):
+    """
+    通用文件获取接口
+    file_type: image / video / pdf / latex 等（枚举类型）
+    filename: 文件名
+    preview: 对 PDF 是否预览（true）或下载（false）
+    """
+    # 从数据库查找文件元数据
+    result = await db.execute(
+        select(MediaFile).where(
+            MediaFile.filename == filename,
+            MediaFile.type == file_type
+        )
+    )
+    media = result.scalar_one_or_none()
+    if not media:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # 通过 URL 得到本地路径
+    local_path = media.url.lstrip("/")
+    if not os.path.exists(local_path):
+        raise HTTPException(status_code=404, detail="File missing on disk")
+
+    # PDF 特殊处理（流式传输 + 下载/预览切换）
+    if file_type == MediaType.pdf:
+        try:
+            file = open(local_path, "rb")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to open PDF: {str(e)}")
+
+        def file_iterator():
+            try:
+                while chunk := file.read(8192):
+                    yield chunk
+            finally:
+                file.close()
+
+        response = StreamingResponse(file_iterator(), media_type="application/pdf")
+        if not preview:
+            response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    # 其他类型直接用 FileResponse 返回
+    return FileResponse(local_path)
+
 @router.get("/images/{filename}")
-async def get_image(filename: str):
-    """获取图片文件"""
-    file_path = get_file_path(filename, IMAGES_DIR)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Image not found")
-    
-    return FileResponse(file_path)
+async def get_image_compat(filename: str, db: Annotated[AsyncSession, Depends(get_db)]):
+    return await get_media(MediaType.image, filename,  db,True)
+
+@router.get("/videos/{filename}")
+async def get_video_compat(filename: str, db: Annotated[AsyncSession, Depends(get_db)]):
+    return await get_media(MediaType.video, filename,  db,True)
+
+@router.get("/pdfs/{filename}")
+async def get_pdf_compat(filename: str, db: Annotated[AsyncSession, Depends(get_db)],preview: bool = Query(True)):
+    return await get_media(MediaType.pdf, filename,  db,preview)
+
+
+
+
+
+
 
 
 # 评论相关
@@ -520,146 +643,6 @@ async def delete_article(
     await db.commit()
     
     return {"message": "Article deleted successfully"}
-
-
-@router.post("/upload-video", response_model=dict)
-async def upload_video(
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-    file: UploadFile = File(...)
-):
-    """上传视频"""
-    # 检查文件类型
-    if not file.content_type or not file.content_type.startswith('video/'):
-        raise HTTPException(
-            status_code=400,
-            detail="Only video files are allowed"
-        )
-    # 检查文件大小 (100MB)
-    if file.size and file.size > 100 * 1024 * 1024:
-        raise HTTPException(
-            status_code=400,
-            detail="File size too large. Maximum 100MB allowed"
-        )
-    # 生成唯一文件名
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    
-    file_extension = os.path.splitext(file.filename)[1]
-    unique_filename = f"{uuid.uuid4()}{file_extension}"
-    file_path = os.path.join(VIDEOS_DIR, unique_filename)
-    # 保存文件
-    try:
-        with open(file_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to save file: {str(e)}"
-        )
-    # 返回文件URL
-    file_url = f"/api/v1/articles/videos/{unique_filename}"
-    
-    # 保存元数据
-    db_file = MediaFile(
-        filename=unique_filename,
-        type=MediaType.video,
-        url=file_url,
-        size=len(content),
-        description=None,
-        uploader_id=current_user.id
-    )
-    db.add(db_file)
-    await db.commit()
-    
-    return {
-        "url": file_url,
-        "filename": unique_filename,
-        "original_name": file.filename,
-        "size": len(content)
-    }
-
-
-@router.get("/videos/{filename}")
-async def get_video(filename: str):
-    """获取视频文件"""
-    file_path = os.path.join(VIDEOS_DIR, filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Video not found")
-    return FileResponse(file_path)
-
-
-@router.post("/upload-pdf", response_model=dict)
-async def upload_pdf(
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-    file: UploadFile = File(...)
-):
-    """上传 PDF 文档"""
-    if not file.content_type or file.content_type != 'application/pdf':
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
-    
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    
-    file_extension = os.path.splitext(file.filename)[1]
-    unique_filename = f"{uuid.uuid4()}{file_extension}"
-    file_path = os.path.join(PDFS_DIR, unique_filename)
-    try:
-        with open(file_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
-    file_url = f"/api/v1/articles/pdfs/{unique_filename}"
-    
-    # 保存元数据
-    db_file = MediaFile(
-        filename=unique_filename,
-        type=MediaType.pdf,
-        url=file_url,
-        size=len(content),
-        description=None,
-        uploader_id=current_user.id
-    )
-    db.add(db_file)
-    await db.commit()
-    
-    return {
-        "url": file_url,
-        "filename": unique_filename,
-        "original_name": file.filename,
-        "size": len(content)
-    }
-
-
-@router.get("/pdfs/{filename}")
-async def get_pdf(filename: str, preview: bool = Query(True)):
-    file_path = get_file_path(filename, PDFS_DIR)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="PDF not found")
-    try:
-        file = open(file_path, "rb")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to open PDF: {str(e)}")
-    def file_iterator():
-        try:
-            while True:
-                chunk = file.read(8192)
-                if not chunk:
-                    break
-                yield chunk
-        finally:
-            file.close()
-    response = StreamingResponse(file_iterator(), media_type="application/pdf")
-    if not preview:
-        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
-    else:
-        if "Content-Disposition" in response.headers:
-            del response.headers["Content-Disposition"]
-    return response
-
 
 @router.get("/media/list", response_model=List[dict])
 async def list_media_files(db: Annotated[AsyncSession, Depends(get_db)],uploader_id: int = Query(None)):

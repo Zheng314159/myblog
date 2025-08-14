@@ -77,42 +77,55 @@ class PostgresFTSSearch(BaseFTSSearch):
     @staticmethod
     async def search_articles(
         db: AsyncSession,
-        query: str,
+        query: str|None,
         skip: int = 0,
         limit: int = 10,
         status: Optional[ArticleStatus] = None,
-        author: Optional[str] = None
+        author: Optional[str] = None,
+        tag: Optional[str] = None
     ) -> List[ArticleListResponse]:
         """使用 PostgreSQL FTS 查询文章（中英文支持）"""
+        assert query is not None
         if not query.strip():
             return []
 
         ts_query = query.strip()
         sql = """
-            SELECT id
-            FROM article
+            SELECT  a.id
+            FROM article a
             WHERE (
-                tsv_zh @@ plainto_tsquery('simple', :query)
-                OR tsv_en @@ plainto_tsquery('english', :query)
+                a.tsv_zh @@ plainto_tsquery('simple', :query)
+                OR a.tsv_en @@ plainto_tsquery('english', :query)
             )
         """
-        params = {"query": ts_query}
+        params: dict[str, str | int] = {"query": ts_query}
 
         if status:
-            sql += " AND status = :status"
+            sql += " AND a.status = :status"
             params["status"] = status.value.upper()
         else:
-            sql += " AND status = 'PUBLISHED'"
+            sql += " AND a.status = 'PUBLISHED'"
 
         if author:
             sql += """
-            AND author_id IN (
+            AND a.author_id IN (
                 SELECT id FROM "user" WHERE username = :author
             )
             """
             params["author"] = author
+        # 标签过滤
+        if tag:
+            sql += """
+                AND a.id IN (
+                    SELECT DISTINCT at.article_id
+                    FROM article_tag at
+                    JOIN tag t ON at.tag_id = t.id
+                    WHERE t.name = :tag
+                )
+            """
+            params["tag"] = tag
 
-        sql += " ORDER BY created_at DESC LIMIT :limit OFFSET :skip"
+        sql += " ORDER BY a.created_at DESC LIMIT :limit OFFSET :skip"
         params["limit"] = limit
         params["skip"] = skip
 

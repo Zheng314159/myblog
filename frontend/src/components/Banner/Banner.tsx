@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import "./Banner.css";
 import "katex/dist/katex.min.css";
 import { BlockMath } from "react-katex";
+import HoloGridBackground from "@/components/HoloGridBackground/HoloGridBackground.tsx"
 
 const formula1 = String.raw`
   \begin{aligned}
@@ -64,7 +65,7 @@ export const Banner: React.FC<BannerProps> = ({
   return (
     <div className="banner relative">
       <div className="banner-gradient-bg" />
-
+      <HoloGridBackground />
       <svg className="banner-bg-decor">
         <ellipse
           cx="15%"

@@ -212,6 +212,23 @@ class NoCacheAdminMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class HTTPSURLMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        url = request.url
+        if (
+            url.scheme == "http"
+            and request.headers.get("x-forwarded-proto") == "https"
+            and url.path.startswith(ADMIN_PATH)
+        ):
+            request.state.url = url.replace(scheme="https")
+            request.state.base_url = request.state.url.replace(path="/")
+        else:
+            request.state.url = url
+            request.state.base_url = request.base_url
+
+        response = await call_next(request)
+        return response
+
 # 打印请求协议的调试中间件
 class PrintSchemeMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -267,3 +284,4 @@ def setup_middleware(app):
     # app.add_middleware(FlashMessageMiddleware)
     app.add_middleware(CSPMiddleware)
     app.add_middleware(NoCacheAdminMiddleware)
+    app.add_middleware(HTTPSURLMiddleware)

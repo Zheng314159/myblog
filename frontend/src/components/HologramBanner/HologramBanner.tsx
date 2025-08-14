@@ -26,7 +26,6 @@ const HologramBanner: React.FC = () => {
 
   return (
     <div className="holo-banner-container">
-      <div className="holo-bg-grid" />
       <div className="holo-content">
         {Object.entries(grouped).map(([type, msgs], idx) => {
           const { color, speed } = typeStyles[type] || typeStyles.default;
@@ -52,7 +51,6 @@ const HologramBanner: React.FC = () => {
                       n.data?.title + "_" + n.data?.message ||
                       "msg-" + i
                     }
-                    className="holo-message"
                     style={{
                       color,
                       textShadow: `0 0 5px ${color}, 0 0 10px ${color}`,

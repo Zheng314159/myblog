@@ -9,31 +9,6 @@
   perspective: 1000px;
 }
 
-/* 网格背景 */
-.holo-bg-grid {
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-      to right,
-      rgba(0, 255, 255, 0.2) 0 2px,
-      transparent 2px 50px
-    ),
-    repeating-linear-gradient(
-      to bottom,
-      rgba(0, 255, 255, 0.2) 0 2px,
-      transparent 2px 50px
-    );
-  transform: rotateX(60deg);
-  transform-origin: top;
-  animation: gridMove 10s linear infinite;
-  filter: blur(1px);
-}
-
-@keyframes gridMove {
-  0% { background-position: 0 0, 0 0; }
-  100% { background-position: 50px 50px, 50px 50px; }
-}
-
 /* 内容 */
 .holo-content {
   position: relative;
@@ -50,14 +25,16 @@
   display: inline-block;
   min-width: 100%;
   animation: marquee linear infinite;
+  animation-play-state: running; /* 默认运行 */
 }
+
+.marquee:hover {
+  animation-play-state: paused; /* 悬停暂停 */
+}
+
 @keyframes marquee {
   0% { transform: translateX(100%); }
   100% { transform: translateX(-100%); }
-}
-.holo-message {
-  margin: 0 24px;
-  font-weight: bold;
 }
 
 /* 渐入动画 */

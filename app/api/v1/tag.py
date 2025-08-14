@@ -10,7 +10,7 @@ from app.core.security import get_current_user, require_admin
 from app.models.user import User
 from app.models.tag import Tag
 from app.models.tag import ArticleTag
-from app.schemas.tag import TagCreate, TagUpdate, TagResponse, TagWithCountResponse
+from app.schemas.tag import TagCreate, TagUpdate, TagResponse, TagWithCountResponse,PopularTagsResponse
 
 router = APIRouter(prefix="/tags", tags=["tags"])
 
@@ -65,7 +65,7 @@ async def list_tags(
     ]
 
 
-@router.get("/popular", response_model=List[TagWithCountResponse])
+@router.get("/popular", response_model=PopularTagsResponse)
 async def get_popular_tags(
     db: Annotated[AsyncSession, Depends(get_db)],
     limit: int = 10
@@ -83,16 +83,20 @@ async def get_popular_tags(
     )
     
     tags_with_count = result.all()
-    
-    return [
-        TagWithCountResponse(
-            id=tag.id,
-            name=tag.name,
-            description=tag.description,
-            article_count=count
-        )
-        for tag, count in tags_with_count
-    ]
+    print(f"❤❤ {tags_with_count}")
+
+    return PopularTagsResponse(
+        tags=[
+            TagWithCountResponse(
+                id=tag.id,
+                name=tag.name,
+                description=tag.description,
+                article_count=count
+            )
+            for tag, count in tags_with_count
+        ]
+    )
+
 
 
 @router.get("/{tag_id}", response_model=TagResponse)

@@ -32,11 +32,12 @@ class BaseFTSSearch(ABC):
     @abstractmethod
     async def search_articles(
         db: AsyncSession,
-        query: str,
+        query: str|None,
         skip: int = 0,
         limit: int = 10,
         status: Optional[ArticleStatus] = None,
         author: Optional[str] = None,
+        tag: Optional[str] = None
     ) -> List[ArticleListResponse]:
         """执行搜索文章"""
         pass

@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { searchArticles } from "../../api/search.ts";
 import { getPopularTags } from "../../api/tag.ts";
 import { PopularTag } from "../../api/tag.ts";
+import HotTags from "@/components/HotTags/hotTags.tsx";
 const { Title } = Typography;
 
 const Search: React.FC = () => {
@@ -15,43 +16,28 @@ const Search: React.FC = () => {
   const [search, setSearch] = useState("");
 
   const query = searchParams.get('q') || '';
+  const tag = searchParams.get('tag') || '';
 
-  useEffect(() => {
-    setLoading(true);
-    searchArticles(query, { skip: 0, limit: 20, status: 'published' })
-      .then((res) => {
-        setArticles(res.data || []);
-        setLoading(false);
-      })
-      .catch((error) => {
-        console.error('搜索失败:', error);
-        setLoading(false);
-      });
-    getPopularTags().then((res) => {
-      setTags(res.data.tags || []);
-    });
-  }, [query]);
+useEffect(() => {
+  setLoading(true);
+  searchArticles({ q: query, tag, skip: 0, limit: 20, status: "published" })
+    .then((res) => {
+      setArticles(res.data || []);
+      setLoading(false);
+    })
+    .catch(() => setLoading(false));
+
+  getPopularTags().then((res) => {
+    setTags(res.data.tags || []);
+  });
+}, [query, tag]);
+
 
   return (
     <div>
       <Title level={2}>全部文章</Title>
-      <Input.Search
-        placeholder="搜索文章..."
-        enterButton
-        onSearch={v => navigate(`/search?q=${encodeURIComponent(v)}`)}
-        style={{ maxWidth: 400, marginBottom: 24 }}
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        defaultValue={query}
-      />
-      <div style={{ marginBottom: 16 }}>
-        热门标签：
-        {tags.map((tag) => (
-          <Tag key={typeof tag === 'string' ? tag : tag.name} color="blue" style={{ cursor: "pointer" }} onClick={() => navigate(`/search?q=${typeof tag === 'string' ? tag : tag.name}`)}>
-            {typeof tag === 'string' ? tag : tag.name}
-          </Tag>
-        ))}
-      </div>
+
+      <HotTags tags={tags} />
       <Spin spinning={loading}>
         {articles.length > 0 ? (
           <List

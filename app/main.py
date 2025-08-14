@@ -27,7 +27,6 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
 from fastapi.staticfiles import StaticFiles
 
 from app.core.apscheduler.base import scheduler
@@ -37,7 +36,6 @@ from app.core.database import engine, create_db_and_tables, async_session
 from app.core.redis import redis_manager
 from app.core.middleware import setup_middleware
 from app.core.exceptions import BlogException
-from app.core.oauth import oauth
 from app.api.v1.auth import router as auth_router
 from app.api.v1.article import router as article_router
 from app.api.v1.tag import router as tag_router
@@ -66,6 +64,11 @@ logger = logging.getLogger(__name__)
 
 ADMIN_PATH = "/admin"  # 后台路径恢复为/admin，保证SQLAdmin静态资源和JS事件正常
 BASE_DIR = Path(__file__).resolve().parent
+FRONTEND_PUBLIC_DIR = BASE_DIR.parent / "frontend" / "public"
+UPLOADS_DIR = BASE_DIR.parent / "uploads"
+
+os.makedirs(FRONTEND_PUBLIC_DIR, exist_ok=True)
+os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -95,7 +98,6 @@ async def lifespan(app: FastAPI):
     await start_scheduler()
     print("Scheduler started")
     
-    templates = Jinja2Templates(directory="app/templates")
     # Create management backend
     admin = Admin(
         app, 
@@ -523,22 +525,6 @@ async def lifespan(app: FastAPI):
     print("Disconnected from Redis")
 
 
-class HTTPSURLMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        url = request.url
-        if (
-            url.scheme == "http"
-            and request.headers.get("x-forwarded-proto") == "https"
-            and url.path.startswith(ADMIN_PATH)
-        ):
-            request.state.url = url.replace(scheme="https")
-            request.state.base_url = request.state.url.replace(path="/")
-        else:
-            request.state.url = url
-            request.state.base_url = request.base_url
-
-        response = await call_next(request)
-        return response
 
 # Create FastAPI app
 app = FastAPI(
@@ -548,17 +534,18 @@ app = FastAPI(
     debug=settings.debug,
     lifespan=lifespan
 )
-app.add_middleware(HTTPSURLMiddleware)
+
 # 挂载 uploads 静态资源目录
 import os
-app.mount("/uploads", StaticFiles(directory=os.path.abspath("uploads")), name="uploads")
+# app.mount("/uploads", StaticFiles(directory=os.path.abspath("uploads")), name="uploads")
+app.mount("/public", StaticFiles(directory=FRONTEND_PUBLIC_DIR), name="public")
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 # 找到 sqladmin 的 static 路径
 # sqladmin_static_dir = os.path.join(os.path.dirname(sqladmin.__file__), "static")
 
 # 手动挂载 static，路径必须是 /admin/statics 才能匹配模板引用的资源路径
 app.mount("/admin/statics", StaticFiles(directory="app/static/sqladmin"), name="sqladmin-static")
-
 # Setup middleware
 
 @app.middleware("http")

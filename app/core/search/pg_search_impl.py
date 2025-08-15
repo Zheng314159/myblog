@@ -114,7 +114,7 @@ class PostgresFTSSearch(BaseFTSSearch):
             """
             params["author"] = author
         # 标签过滤
-        if tag:
+        if tag is not None and tag.strip() != "":
             sql += """
                 AND a.id IN (
                     SELECT DISTINCT at.article_id

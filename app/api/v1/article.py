@@ -24,44 +24,13 @@ from app.schemas.article import (
 )
 from app.core.config import settings
 from app.models.media import MediaFile, MediaType
+from app.utils.file_ops import delete_file
+from app.core.file_path import get_file_path_from_url,get_save_path
+
 
 router = APIRouter(prefix="/articles", tags=["articles"])
 
-# =========================
-# 路径常量
-# =========================
-BASE_DIR = Path(__file__).resolve().parents[3]  # 往上 3 层
-UPLOAD_DIR = BASE_DIR / "uploads"
-PUBLIC_DIR = BASE_DIR / "frontend" / "public"
 
-TYPE_DIRS = {
-    "image": "images",
-    "video": "videos",
-    "pdf": "pdfs",
-}
-
-# 确保目录存在
-for base_dir in (UPLOAD_DIR, PUBLIC_DIR):
-    for sub_dir in TYPE_DIRS.values():
-        (base_dir / sub_dir).mkdir(parents=True, exist_ok=True)
-
-
-
-def get_save_path(current_user: User, file_type: str, filename: str):
-    if current_user.role == "ADMIN":
-        base_dir = PUBLIC_DIR
-        base_url = "/public"
-    else:
-        base_dir = UPLOAD_DIR
-        base_url = "/uploads"
-
-    if file_type not in TYPE_DIRS:
-        raise ValueError(f"Unsupported file type: {file_type}")
-
-    sub_dir = TYPE_DIRS[file_type]
-    save_dir = base_dir / sub_dir
-    file_url = f"{base_url}/{sub_dir}/{filename}"
-    return save_dir, file_url
 
 async def save_upload_file(file: UploadFile, save_dir: Path, filename: str) -> bytes:
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -166,7 +135,7 @@ async def upload_pdf(
         db=db,
         file=file,
         file_type="pdf",
-        max_size=20 * 1024 * 1024,  # 可以自己调
+        max_size=25 * 1024 * 1024,  # 可以自己调
         allowed_mime_prefix="application/pdf"
     )
 # 文件上传相关
@@ -679,23 +648,13 @@ async def delete_media_file(
     media = await db.get(MediaFile, media_id)
     if not media:
         raise HTTPException(status_code=404, detail="文件不存在")
-    # 权限校验（只允许本人或管理员删除）
-    if media.uploader_id != current_user.id and getattr(current_user, 'role', None) != UserRole.ADMIN:
-        raise HTTPException(status_code=403, detail="无权限删除")
     # 删除文件本体
+    # 只删除本地文件，url 需转为本地路径
+    file_path = get_file_path_from_url(media.url)
     try:
-        # 只删除本地文件，url 需转为本地路径
-        file_path = None
-        if media.type == MediaType.image:
-            file_path = os.path.join("uploads", "images", media.filename)
-        elif media.type == MediaType.video:
-            file_path = os.path.join("uploads", "videos", media.filename)
-        elif media.type == MediaType.pdf:
-            file_path = os.path.join("uploads", "pdfs", media.filename)
-        if file_path and os.path.exists(file_path):
-            os.remove(file_path)
+        await delete_file(file_path, current_user.id, owner_id=media.uploader_id, admin_override=current_user.is_admin)
     except Exception as e:
-        pass  # 可记录日志
+        print(f"⚠️ 删除物理文件失败: {media.filename} -> {e}")
     await db.delete(media)
     await db.commit()
     return {"message": "删除成功"} 

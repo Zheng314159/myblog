@@ -9,6 +9,7 @@ from sqlmodel import SQLModel, select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.ext.asyncio import async_sessionmaker  # ✅ Python 3.10+ 的推荐用法
 from app.models import __all_models__  # ✅ 自动引入所有模型
+from sqlalchemy import inspect
 
 # 加载环境变量
 sqlite_url = "sqlite+aiosqlite:///./blog.db"
@@ -85,7 +86,7 @@ async def migrate_data():
                 print(f"📦 {model.__name__}：准备迁移 {len(records)} 条记录")
 
                 for record in records:
-                    data = record.model_dump()
+                    data = {c.key: getattr(record, c.key) for c in inspect(record).mapper.column_attrs}
                     # 针对 DonationRecord，goal_id 不存在则置为 None
                     if model.__name__ == "DonationRecord":
                         goal_id = data.get("goal_id")

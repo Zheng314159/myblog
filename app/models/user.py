@@ -46,6 +46,11 @@ class User(BaseModelMixin):
     media_files: Mapped[List["MediaFile"]] = relationship(back_populates="uploader")
     donations: Mapped[List["DonationRecord"]] = relationship(back_populates="user")
 
+    @property
+    def is_admin(self) -> bool:
+        """判断是否管理员"""
+        return self.role == UserRole.ADMIN
+
 
 class OAuthAccount(BaseModelMixin):
     __tablename__ = "oauth_account"

@@ -70,7 +70,7 @@ docker compose -f docker-compose.dev.yml -p myblog-dev run --rm backend python s
 docker compose -f docker-compose.dev.yml -p myblog-dev up --build
 
 # 容器开发初始化
-docker compose -f docker-compose.prod.yml -p myblog-prod run --rm backend python scripts/init_db.prod.py
+docker compose -f docker-compose.prod.yml -p myblog-prod run --rm backend python scripts/init_db.py
 docker compose -f docker-compose.prod.yml -p myblog-prod run --rm backend python scripts/migrate_sqlite_to_pg.py
 docker compose -f docker-compose.prod.yml -p myblog-prod up --build
 

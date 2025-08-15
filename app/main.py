@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import traceback
+from typing import Optional
 import uuid
 from dotenv import load_dotenv
 from fastapi.templating import Jinja2Templates
@@ -9,6 +10,8 @@ from wtforms.fields import SelectField
 
 from app.models.scheduled_task import ScheduledTask
 from app.utils.decor_test import action_with_pks
+from app.utils.file_ops import delete_file
+from app.core.file_path import get_file_path_from_url
 load_dotenv()
 
 # 设置代理环境变量（如果.env中有配置）
@@ -262,6 +265,57 @@ async def lifespan(app: FastAPI):
         can_view_details = True
         name = "多媒体文件"
         name_plural = "多媒体文件"
+        async def delete_model(self, request: Request, pks: list[int]) -> bool:
+            current_user_id = request.session.get("user_id")
+            if not current_user_id:
+                raise ValueError("无有效用户")
+
+            # 确保 pks 是整数
+            try:
+                pks = [int(pk) for pk in pks]
+            except Exception as e:
+                print(f"pks 转换整数失败: {pks} -> {e}")
+                return False
+
+            async with async_session() as session:
+                try:
+                    media_files: list[MediaFile] = []
+                    for pk in pks:
+                        media = await session.get(MediaFile, pk)
+                        if media is not None:
+                            media_files.append(media)
+
+                    for media in media_files:
+                        # 类型安全检查 url 和 uploader_id
+                        if not media.url:
+                            print(f"⚠️ MediaFile {media.id} url 为空，跳过删除物理文件")
+                            continue
+                        if media.uploader_id is None:
+                            print(f"⚠️ MediaFile {media.id} uploader_id 为空，跳过权限检查")
+                            continue
+
+                        file_path = get_file_path_from_url(media.url)
+                        try:
+                            await delete_file(
+                                file_path=file_path,
+                                current_user_id=current_user_id,
+                                owner_id=media.uploader_id,
+                                admin_override=True
+                            )
+                        except Exception as e:
+                            print(f"⚠️ 删除物理文件失败: {media.filename} -> {e}")
+
+                    # 批量删除数据库对象
+                    for media in media_files:
+                        await session.delete(media)
+
+                    await session.commit()
+                    return True
+
+                except Exception as e:
+                    await session.rollback()
+                    print(f"❌ 删除 MediaFile 失败: {e}")
+                    return False
 
     class OAuthAccountAdmin(ModelView, model=OAuthAccount):
         column_list = ["id", "user_id", "provider", "provider_user_id", "provider_username", "created_at", "updated_at"]

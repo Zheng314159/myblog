@@ -1,8 +1,10 @@
+import asyncio
 import json
 import logging
 from typing import Dict, List, Set, Optional
 from fastapi import WebSocket, WebSocketDisconnect
 from app.models.user import User
+from app.core.redis import redis_manager
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +19,57 @@ class ConnectionManager:
         self.user_subscriptions: Dict[int, Set[str]] = {}
         # 频道订阅: {channel: Set[user_id]}
         self.channel_subscriptions: Dict[str, Set[int]] = {}
-    
+        self._pubsub_task: asyncio.Task | None = None
+    async def connect_redis_pubsub(self):
+        """启动 Redis 订阅，监听广播消息"""
+        await redis_manager.connect()
+        self._pubsub_task = asyncio.create_task(self._listen_redis())
+
+    async def _listen_redis(self):
+        if redis_manager.redis is None:
+            await redis_manager.connect()
+        else:
+            pubsub = redis_manager.redis.pubsub()
+        await pubsub.subscribe("ws_broadcast")
+        logger.info("Subscribed to Redis channel: ws_broadcast")
+        async for msg in pubsub.listen():
+            if msg is None:
+                continue
+            if msg["type"] == "message":
+                data = json.loads(msg["data"])
+                channel = data["channel"]
+                payload = data["payload"]
+                await self._broadcast_local(payload, channel)
+
+    async def _broadcast_local(self, message: dict, channel: str):
+        """仅广播给本 worker 内的 WebSocket 客户端"""
+        if channel not in self.channel_subscriptions:
+            return 0
+        disconnected_users = []
+        sent_count = 0
+        for user_id in self.channel_subscriptions[channel]:
+            if user_id in self.active_connections:
+                try:
+                    await self.active_connections[user_id].send_text(json.dumps(message))
+                    sent_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to send message to user {user_id}: {e}")
+                    disconnected_users.append(user_id)
+            else:
+                disconnected_users.append(user_id)
+        for user_id in disconnected_users:
+            self.disconnect(user_id)
+        return sent_count
+
+    async def broadcast_to_channel(self, message: dict, channel: str):
+        """跨 worker 广播消息"""
+        if redis_manager.redis is None:
+            # 没有连接 Redis，退回本地广播
+            return await self._broadcast_local(message, channel)
+        payload = json.dumps({"payload": message, "channel": channel})
+        await redis_manager.redis.publish("ws_broadcast", payload)
+
+
     async def connect(self, websocket: WebSocket, user: User):
         """建立WebSocket连接"""
         # await websocket.accept()  # 已在 endpoint 处 accept，这里不再 accept
@@ -76,26 +128,26 @@ class ConnectionManager:
                 logger.error(f"Failed to send personal message to user {user_id}: {e}")
                 self.disconnect(user_id)
     
-    async def broadcast_to_channel(self, message: dict, channel: str):
-        """向频道广播消息，返回实际推送到的用户数"""
-        if channel not in self.channel_subscriptions:
-            return 0
-        disconnected_users = []
-        sent_count = 0
-        for user_id in self.channel_subscriptions[channel]:
-            if user_id in self.active_connections:
-                try:
-                    await self.active_connections[user_id].send_text(json.dumps(message))
-                    sent_count += 1
-                except Exception as e:
-                    logger.error(f"Failed to send message to user {user_id} in channel {channel}: {e}")
-                    disconnected_users.append(user_id)
-            else:
-                disconnected_users.append(user_id)
-        # 清理断开的连接
-        for user_id in disconnected_users:
-            self.disconnect(user_id)
-        return sent_count
+    # async def broadcast_to_channel(self, message: dict, channel: str):
+    #     """向频道广播消息，返回实际推送到的用户数"""
+    #     if channel not in self.channel_subscriptions:
+    #         return 0
+    #     disconnected_users = []
+    #     sent_count = 0
+    #     for user_id in self.channel_subscriptions[channel]:
+    #         if user_id in self.active_connections:
+    #             try:
+    #                 await self.active_connections[user_id].send_text(json.dumps(message))
+    #                 sent_count += 1
+    #             except Exception as e:
+    #                 logger.error(f"Failed to send message to user {user_id} in channel {channel}: {e}")
+    #                 disconnected_users.append(user_id)
+    #         else:
+    #             disconnected_users.append(user_id)
+    #     # 清理断开的连接
+    #     for user_id in disconnected_users:
+    #         self.disconnect(user_id)
+    #     return sent_count
     
     async def broadcast_to_all(self, message: dict):
         """向所有连接广播消息"""

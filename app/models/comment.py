@@ -15,13 +15,13 @@ class Comment(BaseModelMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     content: Mapped[str]
 
-    article_id: Mapped[int] = mapped_column(ForeignKey("article.id"))
+    article_id: Mapped[int] = mapped_column(ForeignKey("article.id", ondelete="CASCADE"))
     author_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
-    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("comment.id"), default=None)
+    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("comment.id", ondelete="CASCADE"), default=None)
     is_approved: Mapped[bool] = mapped_column(default=True)
 
     # relationships
     article: Mapped[Optional["Article"]] = relationship(back_populates="comments")
     author: Mapped[Optional["User"]] = relationship(back_populates="comments")
     parent: Mapped[Optional["Comment"]] = relationship(back_populates="replies", remote_side="Comment.id")
-    replies: Mapped[List["Comment"]] = relationship(back_populates="parent")
+    replies: Mapped[List["Comment"]] = relationship(back_populates="parent",cascade="all, delete-orphan",passive_deletes=True,single_parent=True)

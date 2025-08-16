@@ -7,11 +7,12 @@ import uuid
 from dotenv import load_dotenv
 from fastapi.templating import Jinja2Templates
 from wtforms.fields import SelectField
-
+from sqlalchemy.orm import selectinload
 from app.models.scheduled_task import ScheduledTask
 from app.utils.decor_test import action_with_pks
 from app.utils.file_ops import delete_file
 from app.core.file_path import get_file_path_from_url
+from app.core.websocket import manager
 load_dotenv()
 
 # 设置代理环境变量（如果.env中有配置）
@@ -98,9 +99,9 @@ async def lifespan(app: FastAPI):
     print("OAuth initialization skipped")
     
     # Start scheduler
+    await manager.connect_redis_pubsub()
     await start_scheduler()
     print("Scheduler started")
-    
     # Create management backend
     admin = Admin(
         app, 
@@ -181,20 +182,25 @@ async def lifespan(app: FastAPI):
         
         async def delete_model(self, request: Request, pks: list) -> bool:
             print(f"delete_model called: {pks}")
-            """自定义删除方法，允许管理员删除所有文章"""
+            pks_int = [int(pk) for pk in pks]
+
             async with async_session() as session:
                 try:
-                    for pk in pks:
-                        # 删除文章相关的评论（包括子评论）
-                        await session.execute(delete(Comment).where(Comment.article_id == pk))
-                        
-                        # 删除文章标签关联
-                        await session.execute(delete(ArticleTag).where(ArticleTag.article_id == pk))
-                    
-                    # 删除文章
-                    for pk in pks:
-                        await session.execute(delete(Article).where(Article.id == pk))
-                    
+                    for pk in pks_int:
+                        # 先加载 article + comments + tags
+                        obj = await session.get(
+                            Article,
+                            pk,
+                            options=[
+                                selectinload(Article.comments),
+                                selectinload(Article.tags),
+                            ]
+                        )
+                        if obj:
+                            # 删除 ORM 对象，触发 cascade
+                            await session.delete(obj)
+
+                    # 提交事务
                     await session.commit()
                     return True
                 except Exception as e:

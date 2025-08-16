@@ -51,7 +51,7 @@ class Article(ArticleBase, BaseModelMixin):
 
     # relationships
     author: Mapped[Optional["User"]] = relationship(back_populates="articles")
-    comments: Mapped[List["Comment"]] = relationship(back_populates="article")
-    tags: Mapped[List["ArticleTag"]] = relationship(back_populates="article")
+    comments: Mapped[List["Comment"]] = relationship(back_populates="article",cascade="all, delete-orphan",passive_deletes=True,single_parent=True)
+    tags: Mapped[List["ArticleTag"]] = relationship(back_populates="article",passive_deletes=True)
 
 

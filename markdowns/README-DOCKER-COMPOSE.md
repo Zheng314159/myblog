@@ -77,3 +77,8 @@ docker compose -f docker-compose.prod.yml -p myblog-prod up --build
 docker exec -it <backend-container> bash
 ls $(python -c "import sqladmin; print(sqladmin.__path__[0])")/static
 
+docker exec -it myblog-prod-backend-1 bash
+docker exec -it myblog-prod-nginx-1 sh
+
+cd /usr/share/nginx/html/pdfs
+

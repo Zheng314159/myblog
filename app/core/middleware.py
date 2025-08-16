@@ -129,7 +129,8 @@ class CSPMiddleware(BaseHTTPMiddleware):
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
                 "style-src 'self'; "
-                "script-src 'self'; "
+                # "script-src 'self' ; "
+                "script-src 'self' 'unsafe-inline'; "
                 "img-src 'self' blob:; "
                 "font-src 'self'; "
                 "connect-src 'self'; "

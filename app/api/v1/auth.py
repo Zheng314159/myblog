@@ -242,6 +242,9 @@ async def login(
     if not user.is_active:
         raise AuthenticationError("Inactive user")
     
+    # 🚫 禁止管理员前端登录
+    if user.role.value == "ADMIN":  
+        raise AuthenticationError("管理员账号禁止前端登录")
     # Create tokens
     access_token = create_access_token(
         data={"sub": user.username, "user_id": user.id, "role": user.role.value}

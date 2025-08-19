@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     
     # Redis Settings
     redis_url: str = "redis://localhost:6379/0"
-    
+    admin_path: str = "/admin"
     # Email Settings
     smtp_server: str = "smtp.gmail.com"
     smtp_port: int = 587

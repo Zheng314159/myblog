@@ -3,14 +3,16 @@ import logging
 from typing import Callable
 from fastapi import Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from app.core.config import settings
-from app.core.redis import redis_manager
+from app.core.redis import RedisManager, redis_manager
 from app.core.security import verify_token
 from app.core.exceptions import AuthenticationError
 from app.models.user import User
 from app.core.database import async_session
+from app.core.config import settings
 from sqlalchemy import select
 
 # Configure logging
@@ -18,7 +20,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Constants
-ADMIN_PATH = "/admin"
+ADMIN_PATH = settings.admin_path
 # 顶部添加：
 PUBLIC_PATHS = {
     "/", "/health", "/docs", "/redoc", "/openapi.json", "/favicon.ico",
@@ -30,7 +32,7 @@ PUBLIC_PATHS = {
 
 PREFIX_PATHS = [
     "/uploads/", "/wss/ws", "/static", "/statics",
-    "/api/v1/search/", "/api/v1/oauth/", "/api/v1/config/", "/api/v1/donation/",
+    "/api/v1/search/", "/api/v1/oauth/", "/api/v1/config/", "/api/v1/donation/","/api/v1/admin/",
     "/api/v1/articles/images/", "/api/v1/articles/videos/", "/api/v1/articles/pdfs/", "/api/v1/articles/media/list"
 ]
 
@@ -246,6 +248,88 @@ class FlashMessageMiddleware(BaseHTTPMiddleware):
             request.state.flash_messages = messages
         return response
 
+class SecurityMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, redis_manager: RedisManager, ip_whitelist=None, ip_blacklist=None, rate_limit: int = 100, rate_window: int = 60):
+        """
+        :param redis_manager: Redis 管理实例
+        :param ip_whitelist: 允许的 IP 列表（可选）
+        :param ip_blacklist: 禁止的 IP 列表（可选）
+        :param rate_limit: 窗口内允许的最大请求数
+        :param rate_window: 窗口大小（秒）
+        """
+        super().__init__(app)
+        self.redis_manager = redis_manager
+        self.ip_whitelist = set(ip_whitelist or [])
+        self.ip_blacklist = set(ip_blacklist or [])
+        self.rate_limit = rate_limit
+        self.rate_window = rate_window
+        self.route_limits = {
+            "/admin/login": (5, 60),            # 登录接口，每分钟5次
+            "/send-verification-code": (10, 60),  # 注册/验证码接口
+            "/api/": (250, 60),                 # 普通 API 接口
+            "/": (300, 60),                      # 首页/静态资源
+        }
+
+    async def dispatch(self, request: Request, call_next):
+        # ========== 获取客户端 IP ==========
+        client_ip: str = "unknown"
+
+        if request.client and request.client.host:
+            client_ip = request.client.host
+        else:
+            # 安全地获取 X-Forwarded-For
+            x_forwarded_for = request.headers.get("x-forwarded-for", "")
+            if x_forwarded_for:
+                client_ip = x_forwarded_for.split(",")[0].strip()
+
+        # 查找匹配的限流策略
+        path = request.url.path
+        limit, window = self.rate_limit, self.rate_window
+        for prefix, (l, w) in self.route_limits.items():
+            if path.startswith(prefix):
+                limit, window = l, w
+                break
+        # 1. IP 黑白名单检查
+        if self.ip_whitelist and client_ip not in self.ip_whitelist:
+            return JSONResponse({"detail": "Your IP is not allowed"}, status_code=403)
+
+        if client_ip in self.ip_blacklist:
+            return JSONResponse({"detail": "Your IP is blacklisted"}, status_code=403)
+
+        if await self.redis_manager.exists_blacklist("ip", client_ip):
+            return JSONResponse({"detail": "Your IP is in blacklist"}, status_code=403)
+
+        # 2. Token 黑名单检查
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            if await self.redis_manager.is_token_blacklisted(token):
+                return JSONResponse({"detail": "Token is blacklisted"}, status_code=401)
+
+        # 3. 设备限制
+        device_id = request.headers.get("X-Device-ID")
+        if device_id and await self.redis_manager.exists_blacklist("device", device_id):
+            return JSONResponse({"detail": "This device is blocked"}, status_code=403)
+
+        # 4. 请求速率限制 (Rate Limit)
+        rate_key = f"rate:{client_ip}"
+        if self.redis_manager.redis is None:
+            raise RuntimeError("Redis not connected")
+        current = await self.redis_manager.redis.incr(rate_key)
+
+        if current == 1:
+            # 第一次请求，设置过期时间
+            await self.redis_manager.redis.expire(rate_key, window)
+
+        if current > limit:
+            return JSONResponse(
+                {"detail": f"Too many requests, limit {limit}/{window}s"},
+                status_code=429,
+            )
+
+        # 5. 通过检查，继续处理请求
+        response = await call_next(request)
+        return response
 
 # class FlashMessageMiddleware(BaseHTTPMiddleware):
 #     async def dispatch(self, request: Request, call_next):
@@ -277,6 +361,14 @@ def setup_middleware(app):
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"]
+    )
+    app.add_middleware(
+        SecurityMiddleware,
+        redis_manager=redis_manager,
+        ip_whitelist=[],       # 可选，限制访问 IP
+        ip_blacklist=[],       # 可选，黑名单
+        rate_limit=250,         # 每窗口最多 50 个请求
+        rate_window=60,        # 窗口 60 秒
     )
 
     # Custom middleware

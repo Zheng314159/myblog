@@ -1,0 +1,47 @@
+%% Git Flow
+flowchart TD
+    subgraph GitFlow["Git Flow"]
+        MF(Main Flow)
+        DEV(Develop)
+        F1(Feature/login)
+        F2(Feature/payment)
+        REL1(Release/v1.0)
+        HOT1(Hotfix/urgent_bug)
+
+        MF --> DEV
+        DEV --> F1
+        DEV --> F2
+        F1 --> DEV
+        F2 --> DEV
+        DEV --> REL1
+        REL1 --> MF
+        REL1 --> DEV
+        MF --> HOT1
+        HOT1 --> MF
+        HOT1 --> DEV
+    end
+
+    subgraph GitHubFlow["GitHub Flow"]
+        MAIN(Main)
+        F1_GH(Feature/login)
+        F2_GH(Feature/payment)
+
+        MAIN --> F1_GH
+        MAIN --> F2_GH
+        F1_GH --> MAIN
+        F2_GH --> MAIN
+    end
+
+    subgraph TBD["Trunk Based Development"]
+        MAIN_TBD(Main)
+        F1_TBD(Feature/short-lived-1)
+        F2_TBD(Feature/short-lived-2)
+        HOT_TBD(Hotfix/urgent)
+
+        MAIN_TBD --> F1_TBD
+        MAIN_TBD --> F2_TBD
+        F1_TBD --> MAIN_TBD
+        F2_TBD --> MAIN_TBD
+        MAIN_TBD --> HOT_TBD
+        HOT_TBD --> MAIN_TBD
+    end

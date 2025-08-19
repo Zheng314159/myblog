@@ -1,0 +1,105 @@
+{% extends "sqladmin/base.html" %} {% block body %}
+<div class="d-flex align-items-center justify-content-center vh-100">
+  <form
+    class="Fcol-lg-6 col-md-6 card card-md"
+    action="{{ url_for('admin:login') }}"
+    method="POST"
+    autocomplete="off"
+  >
+    <div class="card-body">
+      <h2 class="card-title text-center mb-4">Login to {{ admin.title }}</h2>
+      <div class="mb-3">
+        <label class="form-label">Username</label>
+        {% if error %}
+        <input
+          name="username"
+          type="text"
+          class="form-control is-invalid"
+          placeholder="Enter username"
+          autocomplete="off"
+        />
+        <div class="invalid-feedback">{{ error }}</div>
+        {% else %}
+        <input
+          name="username"
+          type="text"
+          class="form-control"
+          placeholder="Enter username"
+          autocomplete="off"
+        />
+        {% endif %}
+      </div>
+      <div class="mb-2">
+        <label class="form-label"> Password </label>
+        <div class="input-group input-group-flat">
+          {% if error %}
+          <input
+            name="password"
+            type="password"
+            class="form-control is-invalid"
+            placeholder="Password"
+            autocomplete="off"
+          />
+          <div class="invalid-feedback">{{ error }}</div>
+          {% else %}
+          <input
+            name="password"
+            type="password"
+            class="form-control"
+            placeholder="Password"
+            autocomplete="off"
+          />
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- 验证码 -->
+      <div class="mb-3">
+        <label class="form-label">Verification Code</label>
+        <div class="d-flex gap-2">
+          <input
+            name="code"
+            type="text"
+            class="form-control {% if error %}is-invalid{% endif %}"
+            placeholder="Enter verification code"
+            autocomplete="off"
+          />
+          <button
+            type="button"
+            class="btn btn-primary"
+            onclick="sendCode()"
+          >
+            发送验证码
+          </button>
+        </div>
+        {% if error %}
+        <div class="invalid-feedback d-block">{{ error }}</div>
+        {% endif %}
+      </div>
+      <div class="form-footer">
+        <button type="submit" class="btn btn-primary w-100">Login</button>
+      </div>
+    </div>
+  </form>
+</div>
+<script>
+  async function sendCode() {
+    const username = document.querySelector("input[name='username']").value;
+    if (!username) {
+      alert("请输入用户名后再获取验证码");
+      return;
+    }
+    const res = await fetch("/api/v1/admin/send-admin-verification-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username }),
+    });
+    if (res.ok) {
+      alert("验证码已发送，请查收邮箱");
+    } else {
+      const data = await res.json();
+      alert("发送失败: " + data.detail);
+    }
+  }
+</script>
+{% endblock %}

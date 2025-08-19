@@ -26,7 +26,7 @@ if os.getenv('NO_PROXY') is not None:
 
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
@@ -49,6 +49,7 @@ from app.api.v1.scheduler import router as scheduler_router
 from app.api.v1.oauth import router as oauth_router
 from app.api.v1.config import router as config_router
 from app.api.v1.donation import router as donation_router
+from app.api.v1.admin import router as admin_router
 from sqladmin import Admin, ModelView, action
 from sqladmin.authentication import AuthenticationBackend
 from starlette.responses import RedirectResponse
@@ -63,10 +64,11 @@ from app.models.media import MediaFile
 from app.models.system_notification import SystemNotification
 from app.models.donation import DonationConfig, DonationRecord, DonationGoal
 from app.core.apscheduler.jobs import task_func_map
+from app.core.config import settings
 import logging
 logger = logging.getLogger(__name__)
 
-ADMIN_PATH = "/admin"  # 后台路径恢复为/admin，保证SQLAdmin静态资源和JS事件正常
+ADMIN_PATH = settings.admin_path
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_PUBLIC_DIR = BASE_DIR.parent / "frontend" / "public"
 UPLOADS_DIR = BASE_DIR.parent / "uploads"
@@ -697,6 +699,8 @@ app.include_router(scheduler_router, prefix="/api/v1")
 app.include_router(oauth_router, prefix="/api/v1")
 app.include_router(config_router, prefix="/api/v1")
 app.include_router(donation_router, prefix="/api/v1")
+app.include_router(admin_router,prefix="/api/v1")
+
 
 
 @app.get("/")
@@ -749,6 +753,8 @@ async def show_page(request: Request):
     )
 
 class AdminAuth(AuthenticationBackend):
+    MAX_FAILED_ATTEMPTS = 5
+    LOCK_TIME = 10 * 60  # 10 分钟
     async def authenticate(self, request: Request):
         if request.session.get("user_id"):
             async with async_session() as session:
@@ -761,26 +767,51 @@ class AdminAuth(AuthenticationBackend):
         form = await request.form()
         username = str(form.get("username") or "")
         password = str(form.get("password") or "")
-        # print(f"Login attempt: username={username}, password={password}")
+        code = str(form.get("code") or "")
+        # 检查是否被锁定
+        lock_key = f"login_fail:{username}"
+        fail_count = await redis_manager.get_key(lock_key)
+        if fail_count and int(fail_count) >= self.MAX_FAILED_ATTEMPTS:
+            raise HTTPException(status_code=403, detail="账户已被锁定，请10分钟后再试")
         async with async_session() as session:
             result = await session.execute(select(User).where(User.username == username))
             user = result.scalar_one_or_none()
+            key = f"email_verification:{username}"
+            stored_code = await redis_manager.get_key(key)
             # print(f"User found: {user}")
             if (
                 user and user.role == UserRole.ADMIN and user.is_active
                 and user.hashed_password
                 and verify_password(password, user.hashed_password)
+                and stored_code and stored_code ==code
+
             ):
+                # 验证通过后删除验证码（一次性使用）
+                await redis_manager.delete_key(key)
+                await redis_manager.delete_key(lock_key)
+                # 设置 session
+                # request.session.update({"user_id": user.id, "is_admin": True})
                 # print(f"User {user.username} authenticated successfully")
                 request.session["user_id"] = user.id
                 return True
             else:
                 # print(f"Authentication failed for user {username}")
+                await self._increase_fail_count(username)
                 request.session.pop("user_id", None)
         return False
 
     async def logout(self, request: Request) -> None:
         request.session.pop("user_id", None)
+    async def _increase_fail_count(self, username: str):
+        """增加登录失败次数，并在超过限制时锁定账户"""
+        lock_key = f"login_fail:{username}"
+        current = await redis_manager.get_key(lock_key)
+        if current is None:
+            # 第一次失败，设置计数 + 过期时间
+            await redis_manager.set_key(lock_key, "1", expire=self.LOCK_TIME)
+        else:
+            new_count = int(current) + 1
+            await redis_manager.set_key(lock_key, str(new_count), expire=self.LOCK_TIME)
 
 
 

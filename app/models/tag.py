@@ -18,7 +18,7 @@ class Tag(TagBase,BaseModelMixin):
     __tablename__ = "tag"
     id: Mapped[int] = mapped_column(default=None, primary_key=True)
     # relationships
-    article_tags: Mapped[List["ArticleTag"]] = relationship(back_populates="tag",passive_deletes=True)
+    article_tags: Mapped[List["ArticleTag"]] = relationship(back_populates="tag", cascade="all, delete-orphan", passive_deletes=True)
 
 
 class ArticleTag(BaseModelMixin):
@@ -30,4 +30,4 @@ class ArticleTag(BaseModelMixin):
     
     # relationships
     article: Mapped[Optional["Article"]] = relationship(back_populates="tags")
-    tag: Mapped[Optional["Tag"]] = relationship(back_populates="article_tags") 
+    tag: Mapped[Optional["Tag"]] = relationship(back_populates="article_tags")

@@ -183,26 +183,18 @@ async def lifespan(app: FastAPI):
         form_include_pk = False
         
         async def delete_model(self, request: Request, pks: list) -> bool:
-            print(f"delete_model called: {pks}")
             pks_int = [int(pk) for pk in pks]
-
             async with async_session() as session:
                 try:
-                    for pk in pks_int:
-                        # 先加载 article + comments + tags
-                        obj = await session.get(
-                            Article,
-                            pk,
-                            options=[
-                                selectinload(Article.comments),
-                                selectinload(Article.tags),
-                            ]
-                        )
-                        if obj:
-                            # 删除 ORM 对象，触发 cascade
-                            await session.delete(obj)
-
-                    # 提交事务
+                    # 1. 先删除文章与标签的关联记录
+                    await session.execute(
+                        delete(ArticleTag).where(ArticleTag.article_id.in_(pks_int))
+                    )
+                    
+                    # 2. 再删除文章本身
+                    stmt = delete(Article).where(Article.id.in_(pks_int))
+                    await session.execute(stmt)
+                    
                     await session.commit()
                     return True
                 except Exception as e:

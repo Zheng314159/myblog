@@ -1,0 +1,17 @@
+{
+  "files.autoSave": "afterDelay",
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.mouseWheelZoom": true,
+  "editor.formatOnPaste": true,
+  "python.terminal.activateEnvInCurrentTerminal": true,
+  "python.analysis.typeEvaluation.deprecateTypingAliases": true,
+  "python.analysis.inlayHints.callArgumentNames": "all",
+  "python.languageServer": "Pylance",
+  "python.analysis.typeCheckingMode": "basic",
+  "python.defaultInterpreterPath": "C:\\Users\\wang\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingTypeStubs": "none",
+    "reportUnknownVariableType": "none",
+    "reportUnknownMemberType": "none"
+  }
+}
